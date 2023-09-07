@@ -105,6 +105,25 @@ GPU3DInterface *core3DList[] = {
   NULL
 };
 
+// Unfortunately DeSmuME logs a lot of stuff using plain printf()
+// Override it to redirect it into our logging system
+extern "C" int
+printf (__const char *__restrict fmt, ...)
+{
+  va_list args;
+  va_start (args, fmt);
+  g_autofree char *message = g_strdup_vprintf (fmt, args);
+  va_end (args);
+
+  int len = strlen (message);
+  if (message[len - 1] == '\n')
+    message[len - 1] = '\0';
+
+  hs_core_log (HS_CORE (core), HS_LOG_INFO, message);
+
+  return len;
+}
+
 static void
 message_info (const char *fmt, ...)
 {
