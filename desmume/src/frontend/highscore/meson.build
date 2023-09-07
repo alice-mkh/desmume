@@ -39,7 +39,6 @@ endif
 
 add_global_arguments([
   '-fvisibility=hidden',
-  '-fno-builtin-printf',
   '-DHIGHSCORE=1',
 ], language: ['c', 'cpp'])
 
