@@ -237,7 +237,7 @@ try_migrate_upstream_save (const char *rom_path, const char *save_path, GError *
     return FALSE;
   }
 
-  g_autofree char *message = g_strdup_printf ("Migrated '%s' to '%s'\n",
+  g_autofree char *message = g_strdup_printf ("Migrated '%s' to '%s'",
                                               g_file_peek_path (old_save_file),
                                               g_file_peek_path (new_save_file));
   hs_core_log (HS_CORE (core), HS_LOG_MESSAGE, message);
