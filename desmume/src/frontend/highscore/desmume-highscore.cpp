@@ -458,7 +458,7 @@ desmume_core_save_state (HsCore          *core,
 static double
 desmume_core_get_frame_rate (HsCore *core)
 {
-  return 60;
+  return 59.8261;
 }
 
 static double
