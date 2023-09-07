@@ -253,6 +253,7 @@ desmume_core_load_rom (HsCore      *core,
   arm_jit_reset (CommonSettings.use_jit);
 #endif
 
+  CommonSettings.spuInterpolationMode = SPUInterpolation_None;
   SPU_ChangeSoundCore (SNDCORE_HIGHSCORE, 735 * 4);
   SPU_SetSynchMode (ESynchMode_Synchronous, ESynchMethod_N);
 
