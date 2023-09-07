@@ -75,6 +75,18 @@ SoundInterface_struct *SNDCoreList[] = {
   NULL
 };
 
+static void
+fetch_samples (s16 *sample_buffer, size_t sample_count, ESynchMode synch_mode, ISynchronizingAudioBuffer *the_synchronizer)
+{
+  hs_core_play_samples (HS_CORE (core), sample_buffer, sample_count * 2);
+}
+
+static u32
+get_audio_space ()
+{
+  return DESMUME_SAMPLE_RATE / 60 + 5;
+}
+
 #define GPU3D_SOFTRASTERIZER 1
 #ifdef HAVE_OPENGL
 #define GPU3D_OPENGL_AUTO 2
@@ -145,18 +157,6 @@ static msgBoxInterface message_box_highscore = {
   message_error,
   message_warn,
 };
-
-static void
-fetch_samples (s16 *sample_buffer, size_t sample_count, ESynchMode synch_mode, ISynchronizingAudioBuffer *the_synchronizer)
-{
-  hs_core_play_samples (HS_CORE (core), sample_buffer, sample_count * 2);
-}
-
-static u32
-get_audio_space ()
-{
-  return DESMUME_SAMPLE_RATE / 60 + 5;
-}
 
 #ifdef HAVE_OPENGL
 static bool
