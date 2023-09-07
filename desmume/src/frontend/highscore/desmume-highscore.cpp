@@ -32,8 +32,6 @@ struct _DeSmuMECore
   HsGLContext *gl_context;
   HsSoftwareContext *context;
 
-  s16 *audio_buffer;
-
   char *save_dir;
 };
 
@@ -44,8 +42,8 @@ static void desmume_nintendo_ds_core_init (HsNintendoDsCoreInterface *iface);
 G_DEFINE_FINAL_TYPE_WITH_CODE (DeSmuMECore, desmume_core, HS_TYPE_CORE,
                                G_IMPLEMENT_INTERFACE (HS_TYPE_NINTENDO_DS_CORE, desmume_nintendo_ds_core_init))
 
-static int init_sound (int buffer_size);
-static void deinit_sound ();
+static int init_sound (int buffer_size) { return 0; }
+static void deinit_sound () {}
 static void update_audio (s16 *buffer, u32 num_samples) {}
 static u32 get_audio_space ();
 static void mute_audio () {}
@@ -147,20 +145,6 @@ static msgBoxInterface message_box_highscore = {
   message_error,
   message_warn,
 };
-
-static int
-init_sound (int buffer_size)
-{
-  core->audio_buffer = g_new0 (s16, buffer_size);
-
-  return 0;
-}
-
-static void
-deinit_sound ()
-{
-  g_clear_pointer (&core->audio_buffer, g_free);
-}
 
 static void
 fetch_samples (s16 *sample_buffer, size_t sample_count, ESynchMode synch_mode, ISynchronizingAudioBuffer *the_synchronizer)
