@@ -119,6 +119,7 @@ libdesmume_src += [
   '../../addons/slot2_mpcf.cpp',
   '../../addons/slot2_paddle.cpp',
   '../../addons/slot2_gbagame.cpp',
+  '../../addons/slot2_hcv1000.cpp',
   '../../addons/slot2_none.cpp',
   '../../addons/slot2_rumblepak.cpp',
   '../../addons/slot2_guitarGrip.cpp',
