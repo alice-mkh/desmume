@@ -32,6 +32,7 @@ struct _DeSmuMECore
   HsGLContext *gl_context;
   HsSoftwareContext *context;
 
+  char *rom_path;
   char *save_dir;
 };
 
@@ -237,6 +238,7 @@ desmume_core_load_rom (HsCore      *core,
   if (!try_migrate_upstream_save (rom_path, save_path, error))
     return FALSE;
 
+  g_set_str (&self->rom_path, rom_path);
   g_set_str (&self->save_dir, save_path);
 
   if (NDS_Init () != 0) {
@@ -322,6 +324,7 @@ desmume_core_stop (HsCore *core)
 
   g_clear_object (&self->gl_context);
   g_clear_object (&self->context);
+  g_clear_pointer (&self->rom_path, g_free);
   g_clear_pointer (&self->save_dir, g_free);
 }
 
@@ -408,6 +411,25 @@ desmume_core_run_frame (HsCore *core)
   }
 }
 
+static gboolean
+desmume_core_reload_save (HsCore      *core,
+                          const char  *save_path,
+                          GError     **error)
+{
+  DeSmuMECore *self = DESMUME_CORE (core);
+
+  NDS_FreeROM ();
+
+  g_set_str (&self->save_dir, save_path);
+
+  if (NDS_LoadROM (self->rom_path) < 0) {
+    g_set_error (error, HS_CORE_ERROR, HS_CORE_ERROR_INTERNAL, "Failed to load ROM");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 static void
 desmume_core_load_state (HsCore          *core,
                          const char      *path,
@@ -463,8 +485,6 @@ desmume_core_finalize (GObject *object)
 {
   DeSmuMECore *self = DESMUME_CORE (object);
 
-  g_free (self->save_dir);
-
   core = NULL;
 
   G_OBJECT_CLASS (desmume_core_parent_class)->finalize (object);
@@ -487,6 +507,7 @@ desmume_core_class_init (DeSmuMECoreClass *klass)
   core_class->poll_input = desmume_core_poll_input;
   core_class->run_frame = desmume_core_run_frame;
 
+  core_class->reload_save = desmume_core_reload_save;
   core_class->load_state = desmume_core_load_state;
   core_class->save_state = desmume_core_save_state;
 
