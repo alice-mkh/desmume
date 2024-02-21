@@ -20,11 +20,21 @@ dep_highscore = dependency('highscore-1')
 
 dependencies = [dep_glib2, dep_sdl, dep_pcap, dep_zlib, dep_threads, dep_gl, dep_highscore]
 
-if target_machine.cpu() == 'x86_64'
+cpu = target_machine.cpu()
+
+if cpu == 'x86_64'
   add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
   add_global_arguments('-DHOST_64', language: ['c', 'cpp'])
   have_jit = true
-elif target_machine.cpu() == 'i686'
+elif cpu == 'i686'
+  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
+  add_global_arguments('-DHOST_32', language: ['c', 'cpp'])
+  have_jit = true
+elif cpu == 'aarch64'
+  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
+  add_global_arguments('-DHOST_64', language: ['c', 'cpp'])
+  have_jit = true
+elif cpu == 'arm'
   add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
   add_global_arguments('-DHOST_32', language: ['c', 'cpp'])
   have_jit = true
@@ -164,38 +174,44 @@ libdesmume_src += [
 ]
 
 if have_jit
-  libdesmume_src += [
-    '../../arm_jit.cpp',
-    '../../utils/AsmJit/core/assembler.cpp',
-    '../../utils/AsmJit/core/assert.cpp',
-    '../../utils/AsmJit/core/buffer.cpp',
-    '../../utils/AsmJit/core/compiler.cpp',
-    '../../utils/AsmJit/core/compilercontext.cpp',
-    '../../utils/AsmJit/core/compilerfunc.cpp',
-    '../../utils/AsmJit/core/compileritem.cpp',
-    '../../utils/AsmJit/core/context.cpp',
-    '../../utils/AsmJit/core/cpuinfo.cpp',
-    '../../utils/AsmJit/core/defs.cpp',
-    '../../utils/AsmJit/core/func.cpp',
-    '../../utils/AsmJit/core/logger.cpp',
-    '../../utils/AsmJit/core/memorymanager.cpp',
-    '../../utils/AsmJit/core/memorymarker.cpp',
-    '../../utils/AsmJit/core/operand.cpp',
-    '../../utils/AsmJit/core/stringbuilder.cpp',
-    '../../utils/AsmJit/core/stringutil.cpp',
-    '../../utils/AsmJit/core/virtualmemory.cpp',
-    '../../utils/AsmJit/core/zonememory.cpp',
-    '../../utils/AsmJit/x86/x86assembler.cpp',
-    '../../utils/AsmJit/x86/x86compiler.cpp',
-    '../../utils/AsmJit/x86/x86compilercontext.cpp',
-    '../../utils/AsmJit/x86/x86compilerfunc.cpp',
-    '../../utils/AsmJit/x86/x86compileritem.cpp',
-    '../../utils/AsmJit/x86/x86cpuinfo.cpp',
-    '../../utils/AsmJit/x86/x86defs.cpp',
-    '../../utils/AsmJit/x86/x86func.cpp',
-    '../../utils/AsmJit/x86/x86operand.cpp',
-    '../../utils/AsmJit/x86/x86util.cpp',
-  ]
+  if cpu == 'i686' or cpu == 'x86_64'
+    libdesmume_src += [
+      '../../arm_jit.cpp',
+      '../../utils/AsmJit/core/assembler.cpp',
+      '../../utils/AsmJit/core/assert.cpp',
+      '../../utils/AsmJit/core/buffer.cpp',
+      '../../utils/AsmJit/core/compiler.cpp',
+      '../../utils/AsmJit/core/compilercontext.cpp',
+      '../../utils/AsmJit/core/compilerfunc.cpp',
+      '../../utils/AsmJit/core/compileritem.cpp',
+      '../../utils/AsmJit/core/context.cpp',
+      '../../utils/AsmJit/core/cpuinfo.cpp',
+      '../../utils/AsmJit/core/defs.cpp',
+      '../../utils/AsmJit/core/func.cpp',
+      '../../utils/AsmJit/core/logger.cpp',
+      '../../utils/AsmJit/core/memorymanager.cpp',
+      '../../utils/AsmJit/core/memorymarker.cpp',
+      '../../utils/AsmJit/core/operand.cpp',
+      '../../utils/AsmJit/core/stringbuilder.cpp',
+      '../../utils/AsmJit/core/stringutil.cpp',
+      '../../utils/AsmJit/core/virtualmemory.cpp',
+      '../../utils/AsmJit/core/zonememory.cpp',
+      '../../utils/AsmJit/x86/x86assembler.cpp',
+      '../../utils/AsmJit/x86/x86compiler.cpp',
+      '../../utils/AsmJit/x86/x86compilercontext.cpp',
+      '../../utils/AsmJit/x86/x86compilerfunc.cpp',
+      '../../utils/AsmJit/x86/x86compileritem.cpp',
+      '../../utils/AsmJit/x86/x86cpuinfo.cpp',
+      '../../utils/AsmJit/x86/x86defs.cpp',
+      '../../utils/AsmJit/x86/x86func.cpp',
+      '../../utils/AsmJit/x86/x86operand.cpp',
+      '../../utils/AsmJit/x86/x86util.cpp',
+    ]
+  elif cpu == 'arm' or cpu == 'aarch64'
+    libdesmume_src += [
+      '../../utils/arm_jit/arm_jit_arm.cpp'
+    ]
+  endif
 endif
 
 libdesmume_src += [
