@@ -22,19 +22,11 @@ dependencies = [dep_glib2, dep_sdl, dep_pcap, dep_zlib, dep_threads, dep_gl, dep
 
 cpu = target_machine.cpu()
 
-if cpu == 'x86_64'
+if cpu == 'x86_64' or cpu == 'aarch64'
   add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
   add_global_arguments('-DHOST_64', language: ['c', 'cpp'])
   have_jit = true
-elif cpu == 'i686'
-  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
-  add_global_arguments('-DHOST_32', language: ['c', 'cpp'])
-  have_jit = true
-elif cpu == 'aarch64'
-  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
-  add_global_arguments('-DHOST_64', language: ['c', 'cpp'])
-  have_jit = true
-elif cpu == 'arm'
+elif cpu == 'i686' or cpu == 'arm'
   add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
   add_global_arguments('-DHOST_32', language: ['c', 'cpp'])
   have_jit = true
