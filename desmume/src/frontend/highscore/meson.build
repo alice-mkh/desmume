@@ -3,8 +3,6 @@ project('desmume',
   version: '2.7.10',
   meson_version: '>= 0.65',
   default_options: [
-    'warning_level=1',
-    'c_std=c11',
     'cpp_std=c++14',
   ],
   license: 'GPL2+',
