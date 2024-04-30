@@ -22,6 +22,7 @@
 #endif
 
 #define MIN_BACKLIGHT 0.025
+#define N_BAD_FRAMES 3
 
 volatile bool execute = false;
 
@@ -308,7 +309,7 @@ desmume_core_start (HsCore *core)
 
 #ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
-  self->skip_frames = 2;
+  self->skip_frames = N_BAD_FRAMES;
 #endif
 }
 
@@ -322,7 +323,7 @@ desmume_core_reset (HsCore *core)
 
 #ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
-  self->skip_frames = 2;
+  self->skip_frames = N_BAD_FRAMES;
 #endif
 }
 
@@ -468,7 +469,7 @@ desmume_core_load_state (HsCore          *core,
 
 #ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
-  self->skip_frames = 2;
+  self->skip_frames = N_BAD_FRAMES;
 #endif
 
   callback (core, NULL);
