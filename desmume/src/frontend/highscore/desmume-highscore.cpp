@@ -34,6 +34,8 @@ struct _DeSmuMECore
 
   char *rom_path;
   char *save_dir;
+
+  int skip_frames;
 };
 
 static DeSmuMECore *core;
@@ -299,15 +301,29 @@ desmume_core_load_rom (HsCore      *core,
 static void
 desmume_core_start (HsCore *core)
 {
+  DeSmuMECore *self = DESMUME_CORE (core);
+
   execute = true;
   SPU_Pause (0);
+
+#ifdef HAVE_OPENGL
+  /* The first couple frames will be bad with GL rendering, skip them */
+  self->skip_frames = 2;
+#endif
 }
 
 static void
 desmume_core_reset (HsCore *core)
 {
+  DeSmuMECore *self = DESMUME_CORE (core);
+
   NDS_Reset ();
   SPU_Pause (0);
+
+#ifdef HAVE_OPENGL
+  /* The first couple frames will be bad with GL rendering, skip them */
+  self->skip_frames = 2;
+#endif
 }
 
 static void
@@ -387,6 +403,11 @@ desmume_core_run_frame (HsCore *core)
   NDS_exec<false> ();
   SPU_Emulate_user ();
 
+  if (self->skip_frames > 0) {
+    self->skip_frames--;
+    return;
+  }
+
   const NDSDisplayInfo &display_info = GPU->GetDisplayInfo ();
   const size_t pix_count = GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT;
   u32 *framebuffer;
@@ -435,6 +456,8 @@ desmume_core_load_state (HsCore          *core,
                          const char      *path,
                          HsStateCallback  callback)
 {
+  DeSmuMECore *self = DESMUME_CORE (core);
+
   if (!savestate_load (path)) {
     GError *error = NULL;
 
@@ -442,6 +465,11 @@ desmume_core_load_state (HsCore          *core,
     callback (core, &error);
     return;
   }
+
+#ifdef HAVE_OPENGL
+  /* The first couple frames will be bad with GL rendering, skip them */
+  self->skip_frames = 2;
+#endif
 
   callback (core, NULL);
 }
