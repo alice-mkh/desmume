@@ -232,16 +232,19 @@ try_migrate_upstream_save (const char *rom_path, const char *save_path, GError *
 
 static gboolean
 desmume_core_load_rom (HsCore      *core,
-                       const char  *rom_path,
+                       const char **rom_paths,
+                       int          n_rom_paths,
                        const char  *save_path,
                        GError     **error)
 {
   DeSmuMECore *self = DESMUME_CORE (core);
 
-  if (!try_migrate_upstream_save (rom_path, save_path, error))
+  g_assert (n_rom_paths == 1);
+
+  if (!try_migrate_upstream_save (rom_paths[0], save_path, error))
     return FALSE;
 
-  g_set_str (&self->rom_path, rom_path);
+  g_set_str (&self->rom_path, rom_paths[0]);
   g_set_str (&self->save_dir, save_path);
 
   if (NDS_Init () != 0) {
@@ -291,7 +294,7 @@ desmume_core_load_rom (HsCore      *core,
   GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
 #endif
 
-  if (NDS_LoadROM (rom_path) < 0) {
+  if (NDS_LoadROM (self->rom_path) < 0) {
     g_set_error (error, HS_CORE_ERROR, HS_CORE_ERROR_INTERNAL, "Failed to load ROM");
     return FALSE;
   }
