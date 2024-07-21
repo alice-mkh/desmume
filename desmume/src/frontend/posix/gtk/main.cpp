@@ -1,6 +1,6 @@
  /*
 	Copyright (C) 2007 Pascal Giard (evilynux)
-	Copyright (C) 2006-2021 DeSmuME team
+	Copyright (C) 2006-2024 DeSmuME team
  
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -76,7 +76,6 @@
 
 #ifdef HAVE_OPENGL
 	#include <GL/gl.h>
-	#include "OGLRender.h"
 	#include "OGLRender_3_2.h"
 #endif
 
@@ -1381,7 +1380,7 @@ static int ConfigureDrawingArea(GtkWidget *widget, GdkEventConfigure *event, gpo
 
 static inline void gpu_screen_to_rgb(u32* dst)
 {
-    ColorspaceConvertBuffer555To8888Opaque<false, false, BESwapDst>(GPU->GetDisplayInfo().isCustomSizeRequested ? (u16*)(GPU->GetDisplayInfo().masterCustomBuffer) : GPU->GetDisplayInfo().masterNativeBuffer16,
+    ColorspaceConvertBuffer555xTo8888Opaque<false, false, BESwapDst>(GPU->GetDisplayInfo().isCustomSizeRequested ? (u16*)(GPU->GetDisplayInfo().masterCustomBuffer) : GPU->GetDisplayInfo().masterNativeBuffer16,
 		dst, real_framebuffer_width * real_framebuffer_height * 2);
 }
 
@@ -1592,7 +1591,7 @@ static gboolean ExposeDrawingArea (GtkWidget *widget, GdkEventExpose *event, gpo
 }
 
 static void RedrawScreen() {
-	ColorspaceConvertBuffer555To8888Opaque<true, false, BESwapDst>(
+	ColorspaceConvertBuffer555xTo8888Opaque<true, false, BESwapDst>(
 		GPU->GetDisplayInfo().isCustomSizeRequested ? (u16*)(GPU->GetDisplayInfo().masterCustomBuffer) : GPU->GetDisplayInfo().masterNativeBuffer16,
 		(uint32_t *)video->GetSrcBufferPtr(), real_framebuffer_width * real_framebuffer_height * 2);
 #ifdef HAVE_LIBAGG
