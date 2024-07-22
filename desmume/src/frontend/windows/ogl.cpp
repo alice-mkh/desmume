@@ -98,7 +98,7 @@ static HGLRC main_hRC;
 static HDC main_hDC;
 static HWND main_hWND;
 
-static bool wgl_beginOpenGL()
+static bool _begin()
 {
 	//wglMakeCurrent is slow in some environments. so, check if the desired context is already current
 	if(wglGetCurrentContext() == main_hRC)
@@ -108,11 +108,6 @@ static bool wgl_beginOpenGL()
 		return false;
 
 	return true;
-}
-
-static void wgl_endOpenGL()
-{
-	// Do nothing.
 }
 
 static bool makeBootstrapContext()
@@ -232,10 +227,10 @@ bool windows_opengl_init()
 	main_hDC = hdc;
 	main_hRC = hGlRc;
 	oglAlreadyInit = true;
-	oglrender_beginOpenGL = &wgl_beginOpenGL;
-	oglrender_endOpenGL = &wgl_endOpenGL;
+	oglrender_beginOpenGL = _begin;
+	
 	//use the new pbuffer context for further extension interrogation in shared opengl init
-	wgl_beginOpenGL();
+	_begin();
 
 	return true;
 }
