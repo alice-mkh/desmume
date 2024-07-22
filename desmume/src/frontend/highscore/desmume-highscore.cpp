@@ -421,7 +421,7 @@ desmume_core_run_frame (HsCore *core)
   else
     framebuffer = (u32 *) hs_software_context_get_framebuffer (self->context);
 
-  ColorspaceConvertBuffer555xTo8888Opaque<false, true, BESwapDst> (display_info.masterNativeBuffer16, framebuffer, pix_count * 2);
+  ColorspaceConvertBuffer555To8888Opaque<false, true, BESwapNone> (display_info.masterNativeBuffer16, framebuffer, pix_count * 2);
 
   //some games use the backlight for fading effect
   for (int i = NDSDisplayID_Main; i <= NDSDisplayID_Touch; i++) {
@@ -515,6 +515,8 @@ desmume_core_get_sample_rate (HsCore *core)
 static void
 desmume_core_finalize (GObject *object)
 {
+  DeSmuMECore *self = DESMUME_CORE (object);
+
   core = NULL;
 
   G_OBJECT_CLASS (desmume_core_parent_class)->finalize (object);
