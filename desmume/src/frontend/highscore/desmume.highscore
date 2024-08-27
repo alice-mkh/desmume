@@ -1,6 +1,7 @@
 [Highscore]
 Name=DeSmuME
 Module=desmume-highscore.so
+Authors=yopyop;DeSmuME team;
 Copyright=Copyright (C) 2006 yopyop;Copyright (C) 2006-2022 DeSmuME team;
 Website=http://desmume.org/
 License=GPL-2.0-or-later
