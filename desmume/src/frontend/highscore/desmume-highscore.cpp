@@ -10,12 +10,8 @@
 #include "../render3D.h"
 #include "../saves.h"
 
-#define HAVE_OPENGL
-
-#ifdef HAVE_OPENGL
 #include "../OGLRender.h"
 #include "../OGLRender_3_2.h"
-#endif
 
 #ifdef ENABLE_SSE2
 #include <emmintrin.h>
@@ -92,20 +88,16 @@ get_audio_space ()
 }
 
 #define GPU3D_SOFTRASTERIZER 1
-#ifdef HAVE_OPENGL
 #define GPU3D_OPENGL_AUTO 2
 #define GPU3D_OPENGL 3
 #define GPU3D_OPENGL_OLD 4
-#endif
 
 GPU3DInterface *core3DList[] = {
   &gpu3DNull,
   &gpu3DRasterize,
-#ifdef HAVE_OPENGL
   &gpu3Dgl,
   &gpu3Dgl_3_2,
   &gpu3DglOld,
-#endif
   NULL
 };
 
@@ -162,7 +154,6 @@ static msgBoxInterface message_box_highscore = {
   message_warn,
 };
 
-#ifdef HAVE_OPENGL
 static bool
 highscore_gl_init (void)
 {
@@ -185,7 +176,6 @@ highscore_gl_resize (const bool isFBOSupported, size_t w, size_t h)
 {
   return true;
 }
-#endif
 
 static gboolean
 try_migrate_upstream_save (const char *rom_path, const char *save_path, GError **error)
@@ -265,16 +255,13 @@ desmume_core_load_rom (HsCore      *core,
   SPU_ChangeSoundCore (SNDCORE_HIGHSCORE, 735 * 4);
   SPU_SetSynchMode (ESynchMode_Synchronous, ESynchMethod_N);
 
-#ifdef HAVE_OPENGL
   oglrender_init = highscore_gl_init;
   oglrender_beginOpenGL = highscore_gl_begin;
   oglrender_endOpenGL = highscore_gl_end;
   oglrender_framebufferDidResizeCallback = highscore_gl_resize;
 
-#if defined(OGLRENDER_3_2_H)
   OGLLoadEntryPoints_3_2_Func = OGLLoadEntryPoints_3_2;
   OGLCreateRenderer_3_2_Func = OGLCreateRenderer_3_2;
-#endif
 
   self->gl_context = hs_core_create_gl_context (core, HS_GL_PROFILE_CORE, 3, 2, (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
 
@@ -289,10 +276,6 @@ desmume_core_load_rom (HsCore      *core,
     self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_XRGB8888);
     GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
   }
-#else
-  self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_XRGB8888);
-  GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
-#endif
 
   if (NDS_LoadROM (self->rom_path) < 0) {
     g_set_error (error, HS_CORE_ERROR, HS_CORE_ERROR_INTERNAL, "Failed to load ROM");
@@ -310,10 +293,8 @@ desmume_core_start (HsCore *core)
   execute = true;
   SPU_Pause (0);
 
-#ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
   self->skip_frames = N_BAD_FRAMES;
-#endif
 }
 
 static void
@@ -324,10 +305,8 @@ desmume_core_reset (HsCore *core)
   NDS_Reset ();
   SPU_Pause (0);
 
-#ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
   self->skip_frames = N_BAD_FRAMES;
-#endif
 }
 
 static void
@@ -470,10 +449,8 @@ desmume_core_load_state (HsCore          *core,
     return;
   }
 
-#ifdef HAVE_OPENGL
   /* The first couple frames will be bad with GL rendering, skip them */
   self->skip_frames = N_BAD_FRAMES;
-#endif
 
   callback (core, NULL);
 }
