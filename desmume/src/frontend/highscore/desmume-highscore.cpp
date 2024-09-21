@@ -269,12 +269,12 @@ desmume_core_load_rom (HsCore      *core,
   if (hs_gl_context_realize (self->gl_context, &gl_error)) {
     hs_gl_context_set_size (self->gl_context, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2);
   } else {
-    hs_core_log (core, HS_LOG_WARNING, "Failed to initialize GL 3.2 context, falling back to 2.1");
+    hs_core_log (core, HS_LOG_WARNING, "Failed to initialize GL 3.2 context, falling back to software rasterizer");
     g_clear_object (&self->gl_context);
   }
 
   if (!self->gl_context || !GPU->Change3DRendererByID (GPU3D_OPENGL_AUTO)) {
-    if (!self->gl_context) {
+    if (self->gl_context) {
       hs_core_log (core, HS_LOG_WARNING, "Failed to initialize GL renderer, falling back to software rasterizer");
       hs_gl_context_unrealize (self->gl_context);
       g_clear_object (&self->gl_context);
