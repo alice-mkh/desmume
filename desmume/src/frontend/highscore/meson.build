@@ -64,6 +64,7 @@ add_global_arguments([
   '-Wno-unused-local-typedefs',
   '-Wno-unused-variable',
   '-DHIGHSCORE=1',
+  '-DENABLE_OPENGL_STANDARD=1',
 ], language: ['c', 'cpp'])
 
 includes = include_directories(
