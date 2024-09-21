@@ -246,10 +246,12 @@ desmume_core_load_rom (HsCore      *core,
 
 #ifdef HAVE_JIT
   CommonSettings.use_jit = true;
-  // CommonSettings.jit_max_block_size = 12;
+  CommonSettings.jit_max_block_size = 100;
   arm_jit_sync ();
   arm_jit_reset (CommonSettings.use_jit);
 #endif
+
+  CommonSettings.num_cores = g_get_num_processors ();
 
   CommonSettings.spuInterpolationMode = SPUInterpolation_None;
   SPU_ChangeSoundCore (SNDCORE_HIGHSCORE, 735 * 4);
@@ -397,6 +399,8 @@ desmume_core_run_frame (HsCore *core)
     self->skip_frames--;
     return;
   }
+
+return;
 
   const NDSDisplayInfo &display_info = GPU->GetDisplayInfo ();
   const size_t pix_count = GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT;
