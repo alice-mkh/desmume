@@ -268,13 +268,24 @@ desmume_core_load_rom (HsCore      *core,
   hs_gl_context_realize (self->gl_context);
   hs_gl_context_set_size (self->gl_context, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2);
 
-  if (!GPU->Change3DRendererByID (GPU3D_OPENGL_AUTO)) {
-    hs_core_log (core, HS_LOG_WARNING, "Failed to initialize GL renderer, falling back to software rasterizer");
+  if (!GPU->Change3DRendererByID (GPU3D_OPENGL)) {
+    hs_core_log (core, HS_LOG_WARNING, "Failed to initialize new GL renderer, falling back to old GL");
     hs_gl_context_unrealize (self->gl_context);
     g_clear_object (&self->gl_context);
 
-    self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_XRGB8888);
-    GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
+    self->gl_context = hs_core_create_gl_context (core, HS_GL_PROFILE_LEGACY, 2, 1, (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
+
+    hs_gl_context_realize (self->gl_context);
+    hs_gl_context_set_size (self->gl_context, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2);
+
+    if (!GPU->Change3DRendererByID (GPU3D_OPENGL_OLD)) {
+      hs_core_log (core, HS_LOG_WARNING, "Failed to initialize old GL renderer, falling back to software rasterizer");
+      hs_gl_context_unrealize (self->gl_context);
+      g_clear_object (&self->gl_context);
+
+      self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_XRGB8888);
+      GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
+    }
   }
 
   if (NDS_LoadROM (self->rom_path) < 0) {
