@@ -193,7 +193,7 @@ GPU3DInterface *core3DList[GPU_3D_RENDERER_COUNT+1] = {
 
 - (void)dealloc
 {
-	DestroyOpenGLRenderer();
+	GPU->SetEventHandler(NULL); // Unassigned our event handler before we delete it.
 	
 	delete fetchObject;
 	delete gpuEvent;
