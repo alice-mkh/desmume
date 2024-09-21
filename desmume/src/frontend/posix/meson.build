@@ -16,11 +16,14 @@ dep_pcap = dependency('pcap')
 dep_zlib = dependency('zlib')
 dep_threads = dependency('threads')
 dep_gl = dependency('gl', required: false)
+dep_gles = dependency('glesv2', required: false)
 dep_openal = dependency('openal', required: get_option('openal'))
 dep_alsa = dependency('alsa', required: false)
 dep_soundtouch = dependency('soundtouch', required: false)
 dep_agg = dependency('libagg', required: false)
 dep_fontconfig = dependency('fontconfig', required: false)
+dep_osmesa = dependency('osmesa', required: false)
+dep_egl = dependency('egl', required: false)
 
 # XXX: something wrong with this one.
 #dep_lua = dependency('lua-5.1', required: false)
@@ -31,14 +34,48 @@ endif
 
 dependencies = [dep_glib2, dep_sdl, dep_pcap, dep_zlib, dep_threads]
 
-if target_machine.cpu() == 'x86_64'
-  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
+# Determine the CPU architecture of the target.
+target_cpu_64bit = false
+target_cpu_kind_x86 = false
+target_cpu_kind_arm = false
+target_cpu_kind_powerpc = false
+target_cpu_kind_unknown = false
+
+if target_machine.cpu() == 'x86_64' or \
+   target_machine.cpu() == 'amd64'
+  target_cpu_kind_x86 = true
+  target_cpu_64bit = true
+elif target_machine.cpu() == 'x86' or \
+     target_machine.cpu() == 'i686' or \
+     target_machine.cpu() == 'i586' or \
+     target_machine.cpu() == 'i486' or \
+     target_machine.cpu() == 'i386'
+  target_cpu_kind_x86 = true
+elif target_machine.cpu() == 'aarch64' or \
+     target_machine.cpu() == 'arm64'
+  target_cpu_kind_arm = true
+  target_cpu_64bit = true
+elif target_machine.cpu() == 'arm'
+  target_cpu_kind_arm = true
+elif target_machine.cpu() == 'ppc64'
+  target_cpu_kind_powerpc = true
+  target_cpu_64bit = true
+elif target_machine.cpu() == 'powerpc'
+  target_cpu_kind_powerpc = true
+else
+  target_cpu_kind_unknown = true
+endif
+
+if target_cpu_64bit
   add_global_arguments('-DHOST_64', language: ['c', 'cpp'])
-  have_jit = true
-elif target_machine.cpu() == 'i686'
-  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
+else
   add_global_arguments('-DHOST_32', language: ['c', 'cpp'])
+endif
+
+# Enable JIT for supported architectures.
+if target_cpu_kind_x86 or target_cpu_kind_arm
   have_jit = true
+  add_global_arguments('-DHAVE_JIT', language: ['c', 'cpp'])
 else
   have_jit = false
 endif
@@ -130,50 +167,108 @@ libdesmume_src = [
 ]
 
 if have_jit
-  libdesmume_src += [
-    '../../arm_jit.cpp',
-    '../../utils/AsmJit/core/assembler.cpp',
-    '../../utils/AsmJit/core/assert.cpp',
-    '../../utils/AsmJit/core/buffer.cpp',
-    '../../utils/AsmJit/core/compiler.cpp',
-    '../../utils/AsmJit/core/compilercontext.cpp',
-    '../../utils/AsmJit/core/compilerfunc.cpp',
-    '../../utils/AsmJit/core/compileritem.cpp',
-    '../../utils/AsmJit/core/context.cpp',
-    '../../utils/AsmJit/core/cpuinfo.cpp',
-    '../../utils/AsmJit/core/defs.cpp',
-    '../../utils/AsmJit/core/func.cpp',
-    '../../utils/AsmJit/core/logger.cpp',
-    '../../utils/AsmJit/core/memorymanager.cpp',
-    '../../utils/AsmJit/core/memorymarker.cpp',
-    '../../utils/AsmJit/core/operand.cpp',
-    '../../utils/AsmJit/core/stringbuilder.cpp',
-    '../../utils/AsmJit/core/stringutil.cpp',
-    '../../utils/AsmJit/core/virtualmemory.cpp',
-    '../../utils/AsmJit/core/zonememory.cpp',
-    '../../utils/AsmJit/x86/x86assembler.cpp',
-    '../../utils/AsmJit/x86/x86compiler.cpp',
-    '../../utils/AsmJit/x86/x86compilercontext.cpp',
-    '../../utils/AsmJit/x86/x86compilerfunc.cpp',
-    '../../utils/AsmJit/x86/x86compileritem.cpp',
-    '../../utils/AsmJit/x86/x86cpuinfo.cpp',
-    '../../utils/AsmJit/x86/x86defs.cpp',
-    '../../utils/AsmJit/x86/x86func.cpp',
-    '../../utils/AsmJit/x86/x86operand.cpp',
-    '../../utils/AsmJit/x86/x86util.cpp',
-  ]
+  if target_cpu_kind_x86
+    libdesmume_src += [
+      '../../arm_jit.cpp',
+      '../../utils/AsmJit/core/assembler.cpp',
+      '../../utils/AsmJit/core/assert.cpp',
+      '../../utils/AsmJit/core/buffer.cpp',
+      '../../utils/AsmJit/core/compiler.cpp',
+      '../../utils/AsmJit/core/compilercontext.cpp',
+      '../../utils/AsmJit/core/compilerfunc.cpp',
+      '../../utils/AsmJit/core/compileritem.cpp',
+      '../../utils/AsmJit/core/context.cpp',
+      '../../utils/AsmJit/core/cpuinfo.cpp',
+      '../../utils/AsmJit/core/defs.cpp',
+      '../../utils/AsmJit/core/func.cpp',
+      '../../utils/AsmJit/core/logger.cpp',
+      '../../utils/AsmJit/core/memorymanager.cpp',
+      '../../utils/AsmJit/core/memorymarker.cpp',
+      '../../utils/AsmJit/core/operand.cpp',
+      '../../utils/AsmJit/core/stringbuilder.cpp',
+      '../../utils/AsmJit/core/stringutil.cpp',
+      '../../utils/AsmJit/core/virtualmemory.cpp',
+      '../../utils/AsmJit/core/zonememory.cpp',
+      '../../utils/AsmJit/x86/x86assembler.cpp',
+      '../../utils/AsmJit/x86/x86compiler.cpp',
+      '../../utils/AsmJit/x86/x86compilercontext.cpp',
+      '../../utils/AsmJit/x86/x86compilerfunc.cpp',
+      '../../utils/AsmJit/x86/x86compileritem.cpp',
+      '../../utils/AsmJit/x86/x86cpuinfo.cpp',
+      '../../utils/AsmJit/x86/x86defs.cpp',
+      '../../utils/AsmJit/x86/x86func.cpp',
+      '../../utils/AsmJit/x86/x86operand.cpp',
+      '../../utils/AsmJit/x86/x86util.cpp',
+    ]
+  elif target_cpu_kind_arm
+    libdesmume_src += [
+      '../../utils/arm_jit/arm_jit_arm.cpp',
+    ]
+  endif
 endif
 
 libdesmume_src += [
   'shared/desmume_config.cpp',
 ]
 
-if dep_gl.found()
-  dependencies += dep_gl
-  libdesmume_src += [
-    '../../OGLRender.cpp',
-    '../../OGLRender_3_2.cpp',
-  ]
+if get_option('opengles')
+  if dep_gles.found()
+    add_global_arguments('-DENABLE_OPENGL_ES', language: ['c', 'cpp'])
+    dependencies += dep_gles
+    libdesmume_src += [
+      '../../OGLRender.cpp',
+      '../../OGLRender_3_2.cpp',
+      '../../OGLRender_ES3.cpp',
+    ]
+  else
+    message('Cannot build with OpenGL ES -- glesv2 library not found.')
+  endif
+elif get_option('opengl')
+  if dep_gl.found()
+    add_global_arguments('-DENABLE_OPENGL_STANDARD', language: ['c', 'cpp'])
+    dependencies += dep_gl
+    libdesmume_src += [
+      '../../OGLRender.cpp',
+      '../../OGLRender_3_2.cpp',
+    ]
+  else
+    message('Cannot build with OpenGL -- gl library not found.')
+  endif
+endif
+
+if get_option('glx')
+  if dep_gl.found()
+    if get_option('opengl')
+      add_global_arguments('-DENABLE_GLX', language: ['c', 'cpp'])
+    elif get_option('opengles')
+      message('GLX contexts are incompatible with OpenGL ES -- cancelling the use of GLX.')
+    else
+      message('GLX contexts are only compatible with standard OpenGL -- cancelling the use of GLX.')
+    endif
+  else
+    message('Cannot use GLX -- gl library not found.')
+  endif
+elif get_option('osmesa')
+  if dep_osmesa.found()
+    if get_option('opengl') and dep_gl.found()
+      message('OSMesa contexts are deprecated.')
+      add_global_arguments('-DENABLE_OSMESA', language: ['c', 'cpp'])
+      dependencies += dep_osmesa
+    elif get_option('opengles')
+      message('OSMesa contexts are incompatible with OpenGL ES -- cancelling the use of OSMesa.')
+    else
+      message('OSMesa contexts are only compatible with standard OpenGL -- cancelling the use of OSMesa.')
+    endif
+  else
+    message('Cannot use OSMesa -- osmesa library not found.')
+  endif
+elif get_option('egl')
+  if dep_egl.found()
+    add_global_arguments('-DENABLE_EGL', language: ['c', 'cpp'])
+    dependencies += dep_egl
+  else
+    message('Cannot use EGL -- egl library not found.')
+  endif
 endif
 
 if dep_openal.found()
@@ -230,25 +325,10 @@ if get_option('gdb-stub')
   ]
 endif
 
-simd = import('unstable-simd')
-cxx = meson.get_compiler('cpp')
-rval = simd.check('colorspacehandler',
-  sse2: '../../utils/colorspacehandler/colorspacehandler_SSE2.cpp',
-  # TODO: add these two even in generic builds.
-  #avx2: '../../utils/colorspacehandler/colorspacehandler_AVX2.cpp',
-  #avx512: '../../utils/colorspacehandler/colorspacehandler_AVX512.cpp',
-  # TODO: add support for this in meson.
-  #altivec: '../../utils/colorspacehandler/colorspacehandler_AltiVec.cpp',
-  compiler: cxx,
-  include_directories: includes,
-)
-colorspacehandler_simd = rval[0]
-
 libdesmume = static_library('desmume',
   libdesmume_src,
   dependencies: dependencies,
   include_directories: includes,
-  link_with: colorspacehandler_simd,
 )
 
 if get_option('frontend-cli')

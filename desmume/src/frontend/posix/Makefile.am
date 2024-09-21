@@ -38,7 +38,6 @@ libdesmume_a_SOURCES = \
 	../../wifi.cpp ../../wifi.h \
 	../../mic.h \
 	../../MMU.cpp ../../MMU.h ../../MMU_timing.h ../../NDSSystem.cpp ../../NDSSystem.h ../../registers.h \
-	../../OGLRender.h ../../OGLRender_3_2.h \
 	../../ROMReader.cpp ../../ROMReader.h \
 	../../render3D.cpp ../../render3D.h \
 	../../rtc.cpp ../../rtc.h \
@@ -121,24 +120,13 @@ libdesmume_a_SOURCES = \
 	../../libretro-common/rthreads/rthreads.c \
 	../../libretro-common/encodings/encoding_utf.c
 
-if SUPPORT_SSE2
-libdesmume_a_SOURCES += \
-	../../utils/colorspacehandler/colorspacehandler_SSE2.cpp ../../utils/colorspacehandler/colorspacehandler_SSE2.h
-endif
-
-if SUPPORT_AVX2
-libdesmume_a_SOURCES += \
-	../../utils/colorspacehandler/colorspacehandler_AVX2.cpp ../../utils/colorspacehandler/colorspacehandler_AVX2.h
-endif
-
-if SUPPORT_ALTIVEC
-libdesmume_a_SOURCES += \
-	../../utils/colorspacehandler/colorspacehandler_AltiVec.cpp ../../utils/colorspacehandler/colorspacehandler_AltiVec.h
-endif
-
 if HAVE_JIT
 libdesmume_a_SOURCES += \
-	../../arm_jit.cpp ../../arm_jit.h ../../instruction_attributes.h \
+	../../arm_jit.h ../../instruction_attributes.h
+
+if HOST_CPU_KIND_X86
+libdesmume_a_SOURCES += \
+	../../arm_jit.cpp \
 	../../utils/AsmJit/AsmJit.h \
 	../../utils/AsmJit/Config.h \
 	../../utils/AsmJit/core.h \
@@ -207,12 +195,28 @@ libdesmume_a_SOURCES += \
 	../../utils/AsmJit/x86/x86operand.h \
 	../../utils/AsmJit/x86/x86util.cpp \
 	../../utils/AsmJit/x86/x86util.h
+else
+if HOST_CPU_KIND_ARM
+libdesmume_a_SOURCES += \
+	../../utils/arm_jit/arm_jit_arm.cpp
+endif
+endif
+
 endif
 
 libdesmume_a_SOURCES += shared/desmume_config.cpp shared/desmume_config.h
 
-if HAVE_GL
-libdesmume_a_SOURCES += ../../OGLRender.cpp ../../OGLRender_3_2.cpp
+if ENABLE_OPENGL_ES
+libdesmume_a_SOURCES += \
+	../../OGLRender.h ../../OGLRender_3_2.h \
+	../../OGLRender.cpp ../../OGLRender_3_2.cpp \
+	../../OGLRender_ES3.h ../../OGLRender_ES3.cpp
+else
+if ENABLE_OPENGL_STANDARD
+libdesmume_a_SOURCES += \
+	../../OGLRender.h ../../OGLRender_3_2.h \
+	../../OGLRender.cpp ../../OGLRender_3_2.cpp
+endif
 endif
 
 if HAVE_OPENAL

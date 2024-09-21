@@ -30,6 +30,21 @@
 #include "NDSSystem.h"
 
 
+static const GLenum GeometryDrawBuffersEnumES[8][4] = {
+	{ OGL_COLOROUT_ATTACHMENT_ID,                   GL_NONE,                  GL_NONE,                         GL_NONE },
+	{ OGL_COLOROUT_ATTACHMENT_ID,                   GL_NONE,                  GL_NONE, OGL_FOGATTRIBUTES_ATTACHMENT_ID },
+	{ OGL_COLOROUT_ATTACHMENT_ID,                   GL_NONE, OGL_POLYID_ATTACHMENT_ID,                         GL_NONE },
+	{ OGL_COLOROUT_ATTACHMENT_ID,                   GL_NONE, OGL_POLYID_ATTACHMENT_ID, OGL_FOGATTRIBUTES_ATTACHMENT_ID },
+	{ OGL_COLOROUT_ATTACHMENT_ID, OGL_WORKING_ATTACHMENT_ID,                  GL_NONE,                         GL_NONE },
+	{ OGL_COLOROUT_ATTACHMENT_ID, OGL_WORKING_ATTACHMENT_ID,                  GL_NONE, OGL_FOGATTRIBUTES_ATTACHMENT_ID },
+	{ OGL_COLOROUT_ATTACHMENT_ID, OGL_WORKING_ATTACHMENT_ID, OGL_POLYID_ATTACHMENT_ID,                         GL_NONE },
+	{ OGL_COLOROUT_ATTACHMENT_ID, OGL_WORKING_ATTACHMENT_ID, OGL_POLYID_ATTACHMENT_ID, OGL_FOGATTRIBUTES_ATTACHMENT_ID }
+};
+
+static const GLint GeometryAttachmentWorkingBufferES[8] = { 1,1,1,1,1,1,1,1 };
+static const GLint GeometryAttachmentPolyIDES[8]        = { 2,2,2,2,2,2,2,2 };
+static const GLint GeometryAttachmentFogAttributesES[8] = { 3,3,3,3,3,3,3,3 };
+
 // Vertex shader for geometry, GLSL ES 3.00
 static const char *GeometryVtxShader_ES300 = {"\
 IN_VTX_POSITION  vec4 inPosition;\n\
@@ -93,7 +108,7 @@ void main()\n\
 	\n\
 	vtxTexCoord = (texScaleMtx * inTexCoord0) / 16.0;\n\
 	vtxColor = vec4(inColor / 63.0, polyAlpha);\n\
-	gl_Position = inPosition / 4096.0;\n\
+	gl_Position = vec4(inPosition.x, -inPosition.y, inPosition.z, inPosition.w) / 4096.0;\n\
 }\n\
 "};
 
@@ -258,7 +273,17 @@ void OGLCreateRenderer_ES_3_0(OpenGLRenderer **rendererPtr)
 
 OpenGLESRenderer_3_0::OpenGLESRenderer_3_0()
 {
-	_variantID = OpenGLVariantID_ES_3_0;
+	_variantID = OpenGLVariantID_ES3_3_0;
+	
+	_geometryDrawBuffersEnum         = GeometryDrawBuffersEnumES;
+	_geometryAttachmentWorkingBuffer = GeometryAttachmentWorkingBufferES;
+	_geometryAttachmentPolyID        = GeometryAttachmentPolyIDES;
+	_geometryAttachmentFogAttributes = GeometryAttachmentFogAttributesES;
+	
+	ref->textureSrcTypeCIColor   = GL_UNSIGNED_BYTE;
+	ref->textureSrcTypeCIFog     = GL_UNSIGNED_BYTE;
+	ref->textureSrcTypeEdgeColor = GL_UNSIGNED_BYTE;
+	ref->textureSrcTypeToonTable = GL_UNSIGNED_BYTE;
 }
 
 Render3DError OpenGLESRenderer_3_0::InitExtensions()
@@ -285,13 +310,12 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 		return error;
 	}
 	
-	// Get host GPU device properties
-	GLint maxUBOSize = 0;
-	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUBOSize);
-	this->_is64kUBOSupported = (maxUBOSize >= 65536);
+	// Mirrored Repeat Mode Support
+	OGLRef.stateTexMirroredRepeat = GL_MIRRORED_REPEAT;
 	
-	// TBOs are only supported in ES 3.2.
-	this->_isTBOSupported = IsOpenGLDriverVersionSupported(3, 2, 0);
+	// Blending Support
+	this->_isBlendFuncSeparateSupported     = true;
+	this->_isBlendEquationSeparateSupported = true;
 	
 	// Fixed locations in shaders are supported in ES 3.0 by default.
 	this->_isShaderFixedLocationSupported = true;
@@ -300,7 +324,7 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropyOGL);
 	this->_deviceInfo.maxAnisotropy = (float)maxAnisotropyOGL;
 	
-	// OpenGL ES 3.0 needs to look up the best format and data type for glReadPixels.
+	// OpenGL ES 3.0 should be able to handle the GL_RGBA format in glReadPixels without any performance penalty.
 	OGLRef.readPixelsBestFormat = GL_RGBA;
 	OGLRef.readPixelsBestDataType = GL_UNSIGNED_BYTE;
 	
@@ -320,8 +344,8 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei)this->_framebufferWidth, (GLsizei)this->_framebufferHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	glActiveTexture(GL_TEXTURE0);
 	
-	// OpenGL ES v3.0 should have all the necessary features to be able to flip and convert the framebuffer.
-	this->willFlipAndConvertFramebufferOnGPU = true;
+	// OpenGL ES 3.0 should have all the necessary features to be able to flip and convert the framebuffer.
+	this->_willConvertFramebufferOnGPU = true;
 	
 	this->_enableTextureSmoothing = CommonSettings.GFX3D_Renderer_TextureSmoothing;
 	this->_emulateShadowPolygon = CommonSettings.OpenGL_Emulation_ShadowPolygon;
@@ -331,6 +355,21 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	
 	// Load and create shaders. Return on any error, since ES 3.0 makes shaders mandatory.
 	this->isShaderSupported	= true;
+	
+	this->_rsResource = new OpenGLRenderStatesResource();
+	
+	if (IsOpenGLDriverVersionSupported(3, 2, 0))
+	{
+		this->_gResource = new OpenGLGeometryResource(OpenGLVariantID_ES3_3_2);
+	}
+	else if (IsOpenGLDriverVersionSupported(3, 1, 0))
+	{
+		this->_gResource = new OpenGLGeometryResource(OpenGLVariantID_ES3_3_1);
+	}
+	else
+	{
+		this->_gResource = new OpenGLGeometryResource(OpenGLVariantID_ES3_3_0);
+	}
 	
 	error = this->CreateGeometryPrograms();
 	if (error != OGLERROR_NOERR)
@@ -342,11 +381,22 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 		return error;
 	}
 	
+	error = this->CreateClearImageProgram(ClearImageVtxShader_150, ClearImageFragShader_150);
+	if (error != OGLERROR_NOERR)
+	{
+		glUseProgram(0);
+		this->DestroyGeometryPrograms();
+		this->isShaderSupported = false;
+
+		return error;
+	}
+	
 	error = this->CreateGeometryZeroDstAlphaProgram(GeometryZeroDstAlphaPixelMaskVtxShader_150, GeometryZeroDstAlphaPixelMaskFragShader_150);
 	if (error != OGLERROR_NOERR)
 	{
 		glUseProgram(0);
 		this->DestroyGeometryPrograms();
+		this->DestroyClearImageProgram();
 		this->isShaderSupported = false;
 		
 		return error;
@@ -362,6 +412,7 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	{
 		glUseProgram(0);
 		this->DestroyGeometryPrograms();
+		this->DestroyClearImageProgram();
 		this->DestroyGeometryZeroDstAlphaProgram();
 		this->isShaderSupported = false;
 		
@@ -371,13 +422,25 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	this->isVBOSupported = true;
 	this->CreateVBOs();
 	
-	this->isPBOSupported = true;
-	this->CreatePBOs();
+	// PBOs are only used when reading back the rendered framebuffer for the emulated
+	// BG0 layer. For desktop-class GPUs, doing an asynchronous glReadPixels() call
+	// is always advantageous since such devices are expected to have their GPUs
+	// connected to a data bus.
+	//
+	// However, many ARM-based mobile devices use integrated GPUs of varying degrees
+	// of memory latency and implementation quality. This means that the performance
+	// of an asynchronous glReadPixels() call is NOT guaranteed on such devices.
+	//
+	// In fact, many ARM-based devices suffer devastating performance drops when trying
+	// to do asynchronous framebuffer reads. Therefore, since most OpenGL ES users will
+	// be running an ARM-based iGPU, we will disable PBOs for OpenGL ES and stick with
+	// a traditional synchronous glReadPixels() call instead.
+	this->isPBOSupported = false;
 	
 	this->isVAOSupported = true;
 	this->CreateVAOs();
 	
-	// Load and create FBOs. Return on any error, since v3.2 Core Profile makes FBOs mandatory.
+	// Load and create FBOs. Return on any error, since OpenGL ES 3.0 includes FBOs as core functionality.
 	this->isFBOSupported = true;
 	error = this->CreateFBOs();
 	if (error != OGLERROR_NOERR)
@@ -429,8 +492,6 @@ Render3DError OpenGLESRenderer_3_0::InitExtensions()
 	this->_isDepthLEqualPolygonFacingSupported = true;
 	this->_enableMultisampledRendering = ((this->_selectedMultisampleSize >= 2) && this->isMultisampledFBOSupported);
 	
-	this->InitFinalRenderStates(&oglExtensionSet); // This must be done last
-	
 	return OGLERROR_NOERR;
 }
 
@@ -440,61 +501,6 @@ Render3DError OpenGLESRenderer_3_0::CreateGeometryPrograms()
 	OGLRenderRef &OGLRef = *this->ref;
 	
 	// Create shader resources.
-	if (OGLRef.uboRenderStatesID == 0)
-	{
-		glGenBuffers(1, &OGLRef.uboRenderStatesID);
-		glBindBuffer(GL_UNIFORM_BUFFER, OGLRef.uboRenderStatesID);
-		glBufferData(GL_UNIFORM_BUFFER, sizeof(OGLRenderStates), NULL, GL_DYNAMIC_DRAW);
-		glBindBufferBase(GL_UNIFORM_BUFFER, OGLBindingPointID_RenderStates, OGLRef.uboRenderStatesID);
-	}
-	
-	if (this->_is64kUBOSupported)
-	{
-		// Try transferring the polygon states through a UBO first. This is the fastest method,
-		// but requires a GPU that supports 64k UBO transfers.
-		if (OGLRef.uboPolyStatesID == 0)
-		{
-			glGenBuffers(1, &OGLRef.uboPolyStatesID);
-			glBindBuffer(GL_UNIFORM_BUFFER, OGLRef.uboPolyStatesID);
-			glBufferData(GL_UNIFORM_BUFFER, MAX_CLIPPED_POLY_COUNT_FOR_UBO * sizeof(OGLPolyStates), NULL, GL_DYNAMIC_DRAW);
-			glBindBufferBase(GL_UNIFORM_BUFFER, OGLBindingPointID_PolyStates, OGLRef.uboPolyStatesID);
-		}
-	}
-#ifdef GL_ES_VERSION_3_2
-	else if (this->_isTBOSupported)
-	{
-		// If for some reason the GPU doesn't support 64k UBOs but still supports OpenGL ES 3.2,
-		// then use a TBO as the second fastest method.
-		if (OGLRef.tboPolyStatesID == 0)
-		{
-			// Set up poly states TBO
-			glGenBuffers(1, &OGLRef.tboPolyStatesID);
-			glBindBuffer(GL_TEXTURE_BUFFER, OGLRef.tboPolyStatesID);
-			glBufferData(GL_TEXTURE_BUFFER, CLIPPED_POLYLIST_SIZE * sizeof(OGLPolyStates), NULL, GL_DYNAMIC_DRAW);
-			
-			glGenTextures(1, &OGLRef.texPolyStatesID);
-			glActiveTexture(GL_TEXTURE0 + OGLTextureUnitID_PolyStates);
-			glBindTexture(GL_TEXTURE_BUFFER, OGLRef.texPolyStatesID);
-			glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, OGLRef.tboPolyStatesID);
-			glActiveTexture(GL_TEXTURE0);
-		}
-	}
-#endif
-	else
-	{
-		// For compatibility reasons, we can transfer the polygon states through a plain old
-		// integer texture.
-		glGenTextures(1, &OGLRef.texPolyStatesID);
-		glActiveTexture(GL_TEXTURE0 + OGLTextureUnitID_PolyStates);
-		glBindTexture(GL_TEXTURE_2D, OGLRef.texPolyStatesID);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, 256, 128, 0, GL_RED_INTEGER, GL_INT, NULL);
-		glActiveTexture(GL_TEXTURE0);
-	}
-	
 	glGenTextures(1, &OGLRef.texFogDensityTableID);
 	glActiveTexture(GL_TEXTURE0 + OGLTextureUnitID_LookupTable);
 	glBindTexture(GL_TEXTURE_2D, OGLRef.texFogDensityTableID);
@@ -519,8 +525,8 @@ Render3DError OpenGLESRenderer_3_0::CreateGeometryPrograms()
 	vsHeader << "#define IN_VTX_TEXCOORD0 layout (location = " << OGLVertexAttributeID_TexCoord0 << ") in\n";
 	vsHeader << "#define IN_VTX_COLOR layout (location = "     << OGLVertexAttributeID_Color     << ") in\n";
 	vsHeader << "\n";
-	vsHeader << "#define IS_USING_UBO_POLY_STATES " << ((OGLRef.uboPolyStatesID != 0) ? 1 : 0) << "\n";
-	vsHeader << "#define IS_USING_TBO_POLY_STATES " << ((OGLRef.tboPolyStatesID != 0) ? 1 : 0) << "\n";
+	vsHeader << "#define IS_USING_UBO_POLY_STATES " << ((this->_gResource->IsPolyStatesBufferUBO()) ? 1 : 0) << "\n";
+	vsHeader << "#define IS_USING_TBO_POLY_STATES " << ((this->_gResource->IsPolyStatesBufferTBO()) ? 1 : 0) << "\n";
 	vsHeader << "#define DEPTH_EQUALS_TEST_TOLERANCE " << DEPTH_EQUALS_TEST_TOLERANCE << ".0\n";
 	vsHeader << "\n";
 	
@@ -529,20 +535,10 @@ Render3DError OpenGLESRenderer_3_0::CreateGeometryPrograms()
 	for (size_t flagsValue = 0; flagsValue < 128; flagsValue++, programFlags.value++)
 	{
 		std::stringstream shaderFlags;
-		if (this->_isShaderFixedLocationSupported)
-		{
-			shaderFlags << "#define OUT_COLOR layout (location = 0) out\n";
-			shaderFlags << "#define OUT_WORKING_BUFFER layout (location = " << GeometryAttachmentWorkingBuffer[programFlags.DrawBuffersMode] << ") out\n";
-			shaderFlags << "#define OUT_POLY_ID layout (location = "        << GeometryAttachmentPolyID[programFlags.DrawBuffersMode]        << ") out\n";
-			shaderFlags << "#define OUT_FOG_ATTRIBUTES layout (location = " << GeometryAttachmentFogAttributes[programFlags.DrawBuffersMode] << ") out\n";
-		}
-		else
-		{
-			shaderFlags << "#define OUT_COLOR out\n";
-			shaderFlags << "#define OUT_WORKING_BUFFER out\n";
-			shaderFlags << "#define OUT_POLY_ID out\n";
-			shaderFlags << "#define OUT_FOG_ATTRIBUTES out\n";
-		}
+		shaderFlags << "#define OUT_COLOR layout (location = 0) out\n";
+		shaderFlags << "#define OUT_WORKING_BUFFER layout (location = " << (OGL_WORKING_ATTACHMENT_ID - GL_COLOR_ATTACHMENT0)       << ") out\n";
+		shaderFlags << "#define OUT_POLY_ID layout (location = "        << (OGL_POLYID_ATTACHMENT_ID - GL_COLOR_ATTACHMENT0)        << ") out\n";
+		shaderFlags << "#define OUT_FOG_ATTRIBUTES layout (location = " << (OGL_FOGATTRIBUTES_ATTACHMENT_ID - GL_COLOR_ATTACHMENT0) << ") out\n";
 		shaderFlags << "\n";
 		shaderFlags << "#define USE_TEXTURE_SMOOTHING " << ((this->_enableTextureSmoothing) ? 1 : 0) << "\n";
 		shaderFlags << "#define USE_NDS_DEPTH_CALCULATION " << ((this->_emulateNDSDepthCalculation) ? 1 : 0) << "\n";
@@ -595,7 +591,7 @@ Render3DError OpenGLESRenderer_3_0::CreateGeometryPrograms()
 		const GLint uniformTexRenderObject				= glGetUniformLocation(OGLRef.programGeometryID[flagsValue], "texRenderObject");
 		glUniform1i(uniformTexRenderObject, 0);
 		
-		if (OGLRef.uboPolyStatesID != 0)
+		if (this->_gResource->IsPolyStatesBufferUBO())
 		{
 			const GLuint uniformBlockPolyStates			= glGetUniformBlockIndex(OGLRef.programGeometryID[flagsValue], "PolyStates");
 			glUniformBlockBinding(OGLRef.programGeometryID[flagsValue], uniformBlockPolyStates, OGLBindingPointID_PolyStates);
@@ -619,6 +615,80 @@ Render3DError OpenGLESRenderer_3_0::CreateGeometryPrograms()
 		OGLRef.uniformPolyDepthOffset[flagsValue]         = glGetUniformLocation(OGLRef.programGeometryID[flagsValue], "polyDepthOffset");
 	}
 	
+	return error;
+}
+
+Render3DError OpenGLESRenderer_3_0::CreateClearImageProgram(const char *vsCString, const char *fsCString)
+{
+	Render3DError error = OGLERROR_NOERR;
+	OGLRenderRef &OGLRef = *this->ref;
+
+	std::stringstream shaderHeader;
+	shaderHeader << "#version 300 es\n";
+	shaderHeader << "precision highp float;\n";
+	shaderHeader << "precision highp int;\n";
+	shaderHeader << "\n";
+
+	std::stringstream vsHeader;
+	if (this->_isShaderFixedLocationSupported)
+	{
+		vsHeader << "#define IN_VTX_POSITION layout (location = "  << OGLVertexAttributeID_Position  << ") in\n";
+		vsHeader << "#define IN_VTX_TEXCOORD0 layout (location = " << OGLVertexAttributeID_TexCoord0 << ") in\n";
+	}
+	else
+	{
+		vsHeader << "#define IN_VTX_POSITION in\n";
+		vsHeader << "#define IN_VTX_TEXCOORD0 in\n";
+	}
+	vsHeader << "\n";
+
+	std::string vtxShaderCode  = shaderHeader.str() + vsHeader.str() + std::string(vsCString);
+	std::stringstream fsHeader;
+	if (this->_isShaderFixedLocationSupported)
+	{
+		fsHeader << "#define OUT_COLOR layout (location = 0) out\n";
+		fsHeader << "#define OUT_FOGATTR layout (location = 1) out\n";
+	}
+	else
+	{
+		fsHeader << "#define OUT_COLOR out\n";
+		fsHeader << "#define OUT_FOGATTR out\n";
+	}
+	fsHeader << "\n";
+
+	std::string fragShaderCodeFogColor = shaderHeader.str() + fsHeader.str() + std::string(fsCString);
+	error = this->ShaderProgramCreate(OGLRef.vsClearImageID,
+									  OGLRef.fsClearImageID,
+									  OGLRef.pgClearImageID,
+									  vtxShaderCode.c_str(),
+									  fragShaderCodeFogColor.c_str());
+	if (error != OGLERROR_NOERR)
+	{
+		INFO("OpenGL ES: Failed to create the CLEAR_IMAGE shader program.\n");
+		glUseProgram(0);
+		this->DestroyClearImageProgram();
+		return error;
+	}
+
+	glLinkProgram(OGLRef.pgClearImageID);
+	if (!this->ValidateShaderProgramLink(OGLRef.pgClearImageID))
+	{
+		INFO("OpenGL ES: Failed to link the CLEAR_IMAGE shader color/fog program.\n");
+		glUseProgram(0);
+		this->DestroyClearImageProgram();
+		return OGLERROR_SHADER_CREATE_ERROR;
+	}
+
+	glValidateProgram(OGLRef.pgClearImageID);
+	glUseProgram(OGLRef.pgClearImageID);
+
+	const GLint uniformTexCIColor   = glGetUniformLocation(OGLRef.pgClearImageID, "texCIColor");
+	const GLint uniformTexCIFogAttr = glGetUniformLocation(OGLRef.pgClearImageID, "texCIFogAttr");
+	const GLint uniformTexCIDepthCF   = glGetUniformLocation(OGLRef.pgClearImageID, "texCIDepth");
+	glUniform1i(uniformTexCIColor, OGLTextureUnitID_CIColor);
+	glUniform1i(uniformTexCIFogAttr, OGLTextureUnitID_CIFogAttr);
+	glUniform1i(uniformTexCIDepthCF, OGLTextureUnitID_CIDepth);
+
 	return error;
 }
 
@@ -831,7 +901,7 @@ Render3DError OpenGLESRenderer_3_0::CreateFogProgram(const OGLFogProgramKey fogP
 	return OGLERROR_NOERR;
 }
 
-Render3DError OpenGLESRenderer_3_0::CreateFramebufferOutput6665Program(const size_t outColorIndex, const char *vtxShaderCString, const char *fragShaderCString)
+Render3DError OpenGLESRenderer_3_0::CreateFramebufferOutput6665Program(const char *vtxShaderCString, const char *fragShaderCString)
 {
 	Render3DError error = OGLERROR_NOERR;
 	OGLRenderRef &OGLRef = *this->ref;
@@ -856,14 +926,14 @@ Render3DError OpenGLESRenderer_3_0::CreateFramebufferOutput6665Program(const siz
 	vsHeader << "#define IN_VTX_COLOR layout (location = "     << OGLVertexAttributeID_Color     << ") in\n";
 	
 	std::stringstream fsHeader;
-	fsHeader << "#define OUT_COLOR layout (location = 0) out\n";
+	fsHeader << "#define OUT_COLOR layout (location = " << (OGL_WORKING_ATTACHMENT_ID - GL_COLOR_ATTACHMENT0) << ") out\n";
 	
 	std::string vtxShaderCode  = shaderHeader.str() + vsHeader.str() + std::string(vtxShaderCString);
 	std::string fragShaderCode = shaderHeader.str() + fsHeader.str() + std::string(fragShaderCString);
 	
 	error = this->ShaderProgramCreate(OGLRef.vertexFramebufferOutput6665ShaderID,
 									  OGLRef.fragmentFramebufferRGBA6665OutputShaderID,
-									  OGLRef.programFramebufferRGBA6665OutputID[outColorIndex],
+									  OGLRef.programFramebufferRGBA6665OutputID,
 									  vtxShaderCode.c_str(),
 									  fragShaderCode.c_str());
 	if (error != OGLERROR_NOERR)
@@ -874,8 +944,8 @@ Render3DError OpenGLESRenderer_3_0::CreateFramebufferOutput6665Program(const siz
 		return error;
 	}
 	
-	glLinkProgram(OGLRef.programFramebufferRGBA6665OutputID[outColorIndex]);
-	if (!this->ValidateShaderProgramLink(OGLRef.programFramebufferRGBA6665OutputID[outColorIndex]))
+	glLinkProgram(OGLRef.programFramebufferRGBA6665OutputID);
+	if (!this->ValidateShaderProgramLink(OGLRef.programFramebufferRGBA6665OutputID))
 	{
 		INFO("OpenGL ES: Failed to link the FRAMEBUFFER OUTPUT RGBA6665 shader program.\n");
 		glUseProgram(0);
@@ -883,18 +953,11 @@ Render3DError OpenGLESRenderer_3_0::CreateFramebufferOutput6665Program(const siz
 		return OGLERROR_SHADER_CREATE_ERROR;
 	}
 	
-	glValidateProgram(OGLRef.programFramebufferRGBA6665OutputID[outColorIndex]);
-	glUseProgram(OGLRef.programFramebufferRGBA6665OutputID[outColorIndex]);
+	glValidateProgram(OGLRef.programFramebufferRGBA6665OutputID);
+	glUseProgram(OGLRef.programFramebufferRGBA6665OutputID);
 	
-	const GLint uniformTexGColor = glGetUniformLocation(OGLRef.programFramebufferRGBA6665OutputID[outColorIndex], "texInFragColor");
-	if (outColorIndex == 0)
-	{
-		glUniform1i(uniformTexGColor, OGLTextureUnitID_FinalColor);
-	}
-	else
-	{
-		glUniform1i(uniformTexGColor, OGLTextureUnitID_GColor);
-	}
+	const GLint uniformTexGColor = glGetUniformLocation(OGLRef.programFramebufferRGBA6665OutputID, "texInFragColor");
+	glUniform1i(uniformTexGColor, OGLTextureUnitID_GColor);
 	
 	return OGLERROR_NOERR;
 }

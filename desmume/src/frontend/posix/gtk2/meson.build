@@ -4,20 +4,36 @@ dep_x11 = dependency('x11')
 gtk_dependencies = dependencies + [dep_gtk3, dep_x11]
 
 desmume_src = [
-  'avout_pipe_base.cpp',
-  'avout_x264.cpp',
-  'avout_flac.cpp',
+  '../shared/avout_flac.cpp',
+  '../shared/avout_pipe_base.cpp',
+  '../shared/avout_x264.cpp',
+  '../shared/ctrlssdl.cpp',
+  '../shared/sndsdl.cpp',
   'config.cpp',
   'desmume.cpp',
   'dToolsList.cpp',
   'tools/ioregsView.cpp',
-  '../shared/sndsdl.cpp',
-  '../shared/ctrlssdl.cpp',
-  'osmesa_3Demu.cpp',
-  'sdl_3Demu.cpp',
   'cheatsGTK.cpp',
   'main.cpp',
 ]
+
+if get_option('glx') and dep_gl.found()
+  desmume_src += [
+    '../shared/glx_3Demu.cpp',
+  ]
+elif get_option('osmesa') and dep_osmesa.found()
+  desmume_src += [
+    '../shared/osmesa_3Demu.cpp',
+  ]
+elif get_option('egl') and dep_egl.found()
+  desmume_src += [
+    '../shared/egl_3Demu.cpp',
+  ]
+else
+  desmume_src += [
+    '../shared/sdl_3Demu.cpp',
+  ]
+endif
 
 # TODO: why do we have to redeclare it here with one more fs level?
 includes = include_directories(

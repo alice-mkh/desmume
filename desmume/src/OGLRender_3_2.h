@@ -29,6 +29,8 @@ extern const char *GeometryFragShader_150;
 extern const char *GeometryZeroDstAlphaPixelMaskVtxShader_150;
 extern const char *GeometryZeroDstAlphaPixelMaskFragShader_150;
 extern const char *MSGeometryZeroDstAlphaPixelMaskFragShader_150;
+extern const char *ClearImageVtxShader_150;
+extern const char *ClearImageFragShader_150;
 extern const char *EdgeMarkVtxShader_150;
 extern const char *EdgeMarkFragShader_150;
 extern const char *FogVtxShader_150;
@@ -58,18 +60,65 @@ extern const char *FramebufferOutput6665FragShader_150;
 void OGLLoadEntryPoints_3_2();
 void OGLCreateRenderer_3_2(OpenGLRenderer **rendererPtr);
 
+class OpenGLGeometryResource : public Render3DResourceGeometry
+{
+protected:
+	GLuint _vboID[3];
+	GLuint _eboID[3];
+	GLuint _vaoID[3];
+	GLuint _uboPolyStatesID[3];
+	GLuint _tboPolyStatesID[3];
+	GLuint _texPolyStatesID[3];
+	GLsync _syncGeometryRender[3];
+	
+	u16 *_indexBuffer[3];
+	OGLPolyStates *_polyStatesBuffer[3];
+	
+public:
+	OpenGLGeometryResource(const OpenGLVariantID variantID);
+	~OpenGLGeometryResource();
+	
+	size_t BindWrite(const size_t rawVtxCount, const size_t clippedPolyCount);
+	
+	size_t BindUsage();
+	size_t UnbindUsage();
+	size_t RebindUsage();
+	
+	u16* GetIndexBuffer(const size_t index);
+	OGLPolyStates* GetPolyStatesBuffer(const size_t index);
+	bool IsPolyStatesBufferUBO();
+	bool IsPolyStatesBufferTBO();
+};
+
+class OpenGLRenderStatesResource : public Render3DResource
+{
+protected:
+	GLsync _sync[3];
+	GLuint _uboRenderStatesID[3];
+	OGLRenderStates *_buffer[3];
+	
+public:
+	OpenGLRenderStatesResource();
+	~OpenGLRenderStatesResource();
+	
+	size_t BindWrite();
+	size_t BindUsage();
+	size_t UnbindUsage();
+	
+	OGLRenderStates* GetRenderStatesBuffer(const size_t index);
+};
+
 class OpenGLRenderer_3_2 : public OpenGLRenderer_2_1
 {
 protected:
-	bool _is64kUBOSupported;
-	bool _isTBOSupported;
 	bool _isShaderFixedLocationSupported;
 	bool _isConservativeDepthSupported;
 	bool _isConservativeDepthAMDSupported;
 	
-	GLsync _syncBufferSetup;
-	CACHE_ALIGN OGLPolyStates _pendingPolyStates[CLIPPED_POLYLIST_SIZE];
+	OpenGLGeometryResource *_gResource;
+	OpenGLRenderStatesResource *_rsResource;
 	
+	virtual Render3DError CreateVBOs();
 	virtual Render3DError CreatePBOs();
 	virtual Render3DError CreateFBOs();
 	virtual void DestroyFBOs();
@@ -80,24 +129,30 @@ protected:
 	virtual void DestroyVAOs();
 	
 	virtual Render3DError CreateGeometryPrograms();
-	virtual void DestroyGeometryPrograms();
+	virtual Render3DError CreateClearImageProgram(const char *vsCString, const char *fsCString);
+	virtual void DestroyClearImageProgram();
 	virtual Render3DError CreateGeometryZeroDstAlphaProgram(const char *vtxShaderCString, const char *fragShaderCString);
 	virtual Render3DError CreateMSGeometryZeroDstAlphaProgram(const char *vtxShaderCString, const char *fragShaderCString);
 	virtual void DestroyMSGeometryZeroDstAlphaProgram();
 	virtual Render3DError CreateEdgeMarkProgram(const bool isMultisample, const char *vtxShaderCString, const char *fragShaderCString);
 	virtual Render3DError CreateFogProgram(const OGLFogProgramKey fogProgramKey, const bool isMultisample, const char *vtxShaderCString, const char *fragShaderCString);
-	virtual Render3DError CreateFramebufferOutput6665Program(const size_t outColorIndex, const char *vtxShaderCString, const char *fragShaderCString);
-	virtual Render3DError CreateFramebufferOutput8888Program(const size_t outColorIndex, const char *vtxShaderCString, const char *fragShaderCString);
+	virtual Render3DError CreateFramebufferOutput6665Program(const char *vtxShaderCString, const char *fragShaderCString);
+	virtual Render3DError CreateFramebufferOutput8888Program(const char *vtxShaderCString, const char *fragShaderCString);
 	
 	virtual void GetExtensionSet(std::set<std::string> *oglExtensionSet);
 	virtual void _SetupGeometryShaders(const OGLGeometryFlags flags);
-	virtual Render3DError EnableVertexAttributes();
-	virtual Render3DError DisableVertexAttributes();
+	virtual void _RenderGeometryVertexAttribEnable();
+	virtual void _RenderGeometryVertexAttribDisable();
 	virtual Render3DError ZeroDstAlphaPass(const POLY *rawPolyList, const CPoly *clippedPolyList, const size_t clippedPolyCount, const size_t clippedPolyOpaqueCount, bool enableAlphaBlending, size_t indexOffset, POLYGON_ATTR lastPolyAttr);
+	virtual void _RenderGeometryLoopBegin();
+	virtual void _RenderGeometryLoopEnd();
 	virtual void _ResolveWorkingBackFacing();
 	virtual void _ResolveGeometry();
 	virtual void _ResolveFinalFramebuffer();
-	virtual Render3DError ReadBackPixels();
+	virtual void _FramebufferProcessVertexAttribEnable();
+	virtual void _FramebufferProcessVertexAttribDisable();
+	virtual Render3DError _FramebufferConvertColorFormat();
+	
 	virtual Render3DError BeginRender(const GFX3D_State &renderState, const GFX3D_GeometryList &renderGList);
 	virtual Render3DError PostprocessFramebuffer();
 	
