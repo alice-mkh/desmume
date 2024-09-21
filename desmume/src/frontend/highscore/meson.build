@@ -38,7 +38,31 @@ if meson.get_compiler('cpp').get_id() == 'clang'
 endif
 
 add_global_arguments([
+  '-Wno-catch-value',
+  '-Wno-class-memaccess',
+  '-Wno-delete-non-virtual-dtor',
+  '-Wno-memset-elt-size',
+  '-Wno-overloaded-virtual',
+  '-Wno-reorder',
+  '-Wno-template-id-cdtor',
+], language: 'cpp')
+
+add_global_arguments([
   '-fvisibility=hidden',
+  '-Wno-address',
+  '-Wno-comment',
+  '-Wno-format',
+  '-Wno-maybe-uninitialized',
+  '-Wno-misleading-indentation',
+  '-Wno-restrict',
+  '-Wno-sign-compare',
+  '-Wno-sizeof-pointer-memaccess',
+  '-Wno-stringop-truncation',
+  '-Wno-unknown-pragmas',
+  '-Wno-unused-but-set-variable',
+  '-Wno-unused-function',
+  '-Wno-unused-local-typedefs',
+  '-Wno-unused-variable',
   '-DHIGHSCORE=1',
 ], language: ['c', 'cpp'])
 
