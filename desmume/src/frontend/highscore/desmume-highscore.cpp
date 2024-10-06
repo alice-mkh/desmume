@@ -280,7 +280,7 @@ desmume_core_load_rom (HsCore      *core,
       g_clear_object (&self->gl_context);
     }
 
-    self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_XRGB8888);
+    self->context = hs_core_create_software_context (core, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2, HS_PIXEL_FORMAT_R8G8B8X8);
     GPU->Change3DRendererByID (GPU3D_SOFTRASTERIZER);
   }
 
