@@ -64,6 +64,7 @@ add_global_arguments([
   '-Wno-unused-local-typedefs',
   '-Wno-unused-variable',
   '-DHIGHSCORE=1',
+  '-DFAKE_MIC=1',
   '-DENABLE_OPENGL_STANDARD=1',
 ], language: ['c', 'cpp'])
 
@@ -77,6 +78,7 @@ includes = include_directories(
 libdesmume_src = [
   'desmume-highscore.cpp',
 
+  'mic.cpp',
   'path.cpp',
 ]
 
@@ -232,10 +234,6 @@ endif
 libdesmume_src += [
   '../../OGLRender.cpp',
   '../../OGLRender_3_2.cpp',
-]
-
-libdesmume_src += [
-  '../../mic.cpp',
 ]
 
 simd = import('unstable-simd')

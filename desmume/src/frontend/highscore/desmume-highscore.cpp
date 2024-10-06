@@ -5,6 +5,7 @@
 #include "../GPU.h"
 #include "../NDSSystem.h"
 #include "../SPU.h"
+#include "../mic.h"
 #include "../path.h"
 #include "../rasterize.h"
 #include "../render3D.h"
@@ -238,6 +239,8 @@ desmume_core_load_rom (HsCore      *core,
   arm_jit_reset (CommonSettings.use_jit);
 #endif
 
+  CommonSettings.micMode = TCommonSettings::Sample;
+
   CommonSettings.spuInterpolationMode = SPUInterpolation_None;
   SPU_ChangeSoundCore (SNDCORE_HIGHSCORE, 735 * 4);
   SPU_SetSynchMode (ESynchMode_Synchronous, ESynchMethod_N);
@@ -366,7 +369,7 @@ desmume_core_poll_input (HsCore *core, HsInputState *input_state)
     NDS_releaseTouch ();
   }
 
-  // NDS_setMic()
+  NDS_setMic (input_state->nintendo_ds.mic_active);
 }
 
 static void
@@ -376,6 +379,8 @@ desmume_core_run_frame (HsCore *core)
 
   NDS_beginProcessingInput ();
   NDS_endProcessingInput ();
+
+  Mic_DoNoise (true);
 
   NDS_exec<false> ();
   SPU_Emulate_user ();
