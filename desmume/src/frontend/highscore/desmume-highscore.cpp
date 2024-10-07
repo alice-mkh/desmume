@@ -106,10 +106,8 @@ message_info (const char *fmt, ...)
 {
   va_list args;
   va_start (args, fmt);
-  g_autofree char *message = g_strdup_vprintf (fmt, args);
+  hs_core_log_valist (HS_CORE (core), HS_LOG_INFO, fmt, args);
   va_end (args);
-
-  hs_core_log (HS_CORE (core), HS_LOG_INFO, message);
 }
 
 static bool
@@ -117,10 +115,8 @@ message_confirm (const char *fmt, ...)
 {
   va_list args;
   va_start (args, fmt);
-  g_autofree char *message = g_strdup_vprintf (fmt, args);
+  hs_core_log_valist (HS_CORE (core), HS_LOG_MESSAGE, fmt, args);
   va_end (args);
-
-  hs_core_log (HS_CORE (core), HS_LOG_MESSAGE, message);
 
   return true;
 }
@@ -130,10 +126,8 @@ message_error (const char *fmt, ...)
 {
   va_list args;
   va_start (args, fmt);
-  g_autofree char *message = g_strdup_vprintf (fmt, args);
+  hs_core_log_valist (HS_CORE (core), HS_LOG_CRITICAL, fmt, args);
   va_end (args);
-
-  hs_core_log (HS_CORE (core), HS_LOG_CRITICAL, message);
 }
 
 static void
@@ -141,10 +135,8 @@ message_warn (const char *fmt, ...)
 {
   va_list args;
   va_start (args, fmt);
-  g_autofree char *message = g_strdup_vprintf (fmt, args);
+  hs_core_log_valist (HS_CORE (core), HS_LOG_WARNING, fmt, args);
   va_end (args);
-
-  hs_core_log (HS_CORE (core), HS_LOG_WARNING, message);
 }
 
 static msgBoxInterface message_box_highscore = {
@@ -200,22 +192,17 @@ try_migrate_upstream_save (const char *rom_path, const char *save_path, GError *
     g_autoptr (GFile) new_save_bak = g_file_get_child (save_file, "save.dsv.bak");
 
     if (!g_file_move (new_save_file, new_save_bak, G_FILE_COPY_OVERWRITE, NULL, NULL,  NULL, error)) {
-      g_autofree char *message = g_strdup_printf ("Failed to back up old save data: %s", (*error)->message);
-      hs_core_log (HS_CORE (core), HS_LOG_WARNING, message);
+      hs_core_log (HS_CORE (core), HS_LOG_WARNING, "Failed to back up old save data: %s", (*error)->message);
       return FALSE;
     }
   }
 
   if (!g_file_move (old_save_file, new_save_file, G_FILE_COPY_NONE, NULL, NULL,  NULL, error)) {
-    g_autofree char *message = g_strdup_printf ("Failed to migrate upstream save data: %s", (*error)->message);
-    hs_core_log (HS_CORE (core), HS_LOG_WARNING, message);
+    hs_core_log (HS_CORE (core), HS_LOG_WARNING, "Failed to migrate upstream save data: %s", (*error)->message);
     return FALSE;
   }
 
-  g_autofree char *message = g_strdup_printf ("Migrated '%s' to '%s'",
-                                              g_file_peek_path (old_save_file),
-                                              g_file_peek_path (new_save_file));
-  hs_core_log (HS_CORE (core), HS_LOG_MESSAGE, message);
+  hs_core_log (HS_CORE (core), HS_LOG_MESSAGE, "Migrated '%s' to '%s'", g_file_peek_path (old_save_file), g_file_peek_path (new_save_file));
 
   return TRUE;
 }
@@ -542,7 +529,7 @@ log_message (HsLogLevel level, const char *message)
   if (msg[len - 1] == '\n')
     msg[len - 1] = '\0';
 
-  hs_core_log (HS_CORE (core), level, msg);
+  hs_core_log_literal (HS_CORE (core), level, msg);
 }
 
 static void
