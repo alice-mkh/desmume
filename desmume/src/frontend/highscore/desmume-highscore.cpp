@@ -295,7 +295,7 @@ desmume_core_start (HsCore *core)
 }
 
 static void
-desmume_core_reset (HsCore *core)
+desmume_core_reset (HsCore *core, gboolean hard)
 {
   DeSmuMECore *self = DESMUME_CORE (core);
 
