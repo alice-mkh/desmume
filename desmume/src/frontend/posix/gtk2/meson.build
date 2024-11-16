@@ -1,7 +1,7 @@
-dep_gtk3 = dependency('gtk+-3.0')
+dep_gtk2 = dependency('gtk+-2.0')
 dep_x11 = dependency('x11')
 
-gtk_dependencies = dependencies + [dep_gtk3, dep_x11]
+gtk_dependencies = dependencies + [dep_gtk2, dep_x11]
 
 desmume_src = [
   '../shared/avout_flac.cpp',
@@ -13,6 +13,7 @@ desmume_src = [
   'desmume.cpp',
   'dToolsList.cpp',
   'tools/ioregsView.cpp',
+  'utilsGTK.cpp',
   'cheatsGTK.cpp',
   'main.cpp',
 ]

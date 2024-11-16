@@ -1835,30 +1835,39 @@ static void writereg_POWCNT1(const int size, const u32 adr, const u32 val)
 
 static INLINE void MMU_IPCSync(u8 proc, u32 val)
 {
-	//INFO("IPC%s sync 0x%04X (0x%02X|%02X)\n", proc?"7":"9", val, val >> 8, val & 0xFF);
+
 	u32 sync_l = T1ReadLong(MMU.MMU_MEM[proc][0x40], 0x180) & 0xFFFF;
 	u32 sync_r = T1ReadLong(MMU.MMU_MEM[proc^1][0x40], 0x180) & 0xFFFF;
+	u32 iter = (val & 0x0F00) >> 8;
 
-	sync_l = ( sync_l & 0x000F ) | ( val & 0x0F00 );
-	sync_r = ( sync_r & 0x6F00 ) | ( (val >> 8) & 0x000F );
+	sync_l = ( sync_l & 0x000F ) | ( val & 0x6F00 );
+	sync_r = ( sync_r & 0x6F00 ) | ( iter );
 
-	sync_l |= val & 0x6000;
+	// For some reason, the arm9 doesn't handshake when ensata is detected.
+	// So we complete the protocol here, which is to mirror the values 8..0 back to 
+	// The arm7 as they are written by the arm7
+	if (nds.ensataEmulation) {
 
-	if(nds.ensataEmulation && proc==1 && nds.ensataIpcSyncCounter<9) {
-		u32 iteration = (val&0x0F00)>>8;
-
-		if(iteration==8-nds.ensataIpcSyncCounter)
-			nds.ensataIpcSyncCounter++;
-		else printf("ERROR: ENSATA IPC SYNC HACK FAILED; BAD THINGS MAY HAPPEN\n");
-
-		//for some reason, the arm9 doesn't handshake when ensata is detected.
-		//so we complete the protocol here, which is to mirror the values 8..0 back to 
-		//the arm7 as they are written by the arm7
-		sync_r &= 0xF0FF;
-		sync_r |= (iteration<<8);
-		sync_l &= 0xFFF0;
-		sync_l |= iteration;
+		if (proc) {
+			// However this hack would break soft reset because it also syncs through ipcsync.
+			// So we have to add some additional checks to ensure that it's handshake instead of reset.
+			if ((iter & 8) || (nds.ensataIpcSyncCounter)) {
+				// sync_r = (sync_r & 0xF0FF) | (iter << 8); // This is not necessary.
+				sync_l = (sync_l & 0xFFF0) | iter;
+				nds.ensataIpcSyncCounter = iter;
+			}
+		}
+		else {
+			// After ensata handshake, arm9 will write 0x100 as a signal if Ensata is detected.
+			// This will prevent reset from working, so we have to ignore this.
+			if (nds.ensataHandshake == ENSATA_HANDSHAKE_complete) {
+				nds.ensataHandshake = ENSATA_HANDSHAKE_none;
+				return; 
+			}
+		}
 	}
+
+	// printf("IPCSync(%d, %04x): %04x %04x %d\n", proc, val, sync_l, sync_r, nds.ensataIpcSyncCounter);
 
 	T1WriteLong(MMU.MMU_MEM[proc][0x40], 0x180, sync_l);
 	T1WriteLong(MMU.MMU_MEM[proc^1][0x40], 0x180, sync_r);
@@ -2475,6 +2484,7 @@ bool validateIORegsWrite(u32 addr, u8 size, u32 val)
 			if(addrMasked == eng_3D_CLIPMTX_RESULT) return true;
 			if(addrMasked == 0x04FFF000) return true;
 			if(addrMasked == 0x04FFF010) return true;
+			if(addrMasked == 0x04FFF200) return true;
 		}
 
 		switch (addrMasked)
@@ -3744,7 +3754,21 @@ void FASTCALL _MMU_ARM9_write08(u32 adr, u8 val)
 				case eng_3D_GXSTAT:
 					MMU_new.gxstat.write(8,adr,val);
 					break;
-					
+
+				case REG_IPCSYNC:
+				{
+					u16 ipcsync = T1ReadWord(MMU.MMU_MEM[ARMCPU_ARM9][0x40], 0x180);
+					ipcsync &= 0xFF00;
+					ipcsync |= (val & 0xFF);
+					MMU_IPCSync(ARMCPU_ARM9, ipcsync);
+				}
+				case REG_IPCSYNC+1:
+				{
+					u16 ipcsync = T1ReadWord(MMU.MMU_MEM[ARMCPU_ARM9][0x40], 0x180);
+					ipcsync &= 0x00FF;
+					ipcsync |= ((val & 0xFF) << 8);
+					MMU_IPCSync(ARMCPU_ARM9, ipcsync);
+				}
 				case REG_AUXSPICNT:
 				case REG_AUXSPICNT+1:
 					write_auxspicnt(ARMCPU_ARM9, 8, adr & 1, val);
@@ -3817,6 +3841,11 @@ void FASTCALL _MMU_ARM9_write08(u32 adr, u8 val)
 				case REG_VRAMCNTH:
 				case REG_VRAMCNTI:
 					MMU_VRAMmapControl(adr-REG_VRAMCNTA, val);
+					break;
+
+					
+				// ensata sound register
+				case 0x04FFF200:
 					break;
 					
 #ifdef LOG_CARD
@@ -4963,7 +4992,7 @@ void FASTCALL _MMU_ARM9_write32(u32 adr, u32 val)
 					//todo - these are usually write only regs (these and 1000 more)
 					//shouldnt we block them from getting written? ugh
 				case eng_3D_CLIPMTX_RESULT:
-					if(nds.ensataEmulation && nds.ensataHandshake == ENSATA_HANDSHAKE_none && val==0x2468ace0)
+					if(nds.ensataEmulation /* && nds.ensataHandshake == ENSATA_HANDSHAKE_none */&& val==0x2468ace0)
 					{
 						printf("ENSATA HANDSHAKE BEGIN\n");
 						nds.ensataHandshake = ENSATA_HANDSHAKE_query;
@@ -5482,6 +5511,10 @@ u32 FASTCALL _MMU_ARM9_read32(u32 adr)
 			case REG_KEYINPUT:
 				LagFrameFlag=0;
 				break;
+
+			// Ensata sound register
+			case 0x04FFF200:
+				return 1;
 		}
 		return T1ReadLong_guaranteedAligned(MMU.MMU_MEM[ARMCPU_ARM9][adr>>20], adr & MMU.MMU_MASK[ARMCPU_ARM9][adr>>20]);
 	}
@@ -5576,6 +5609,21 @@ void FASTCALL _MMU_ARM7_write08(u32 adr, u8 val)
 			case REG_TM3CNTL+0: case REG_TM3CNTL+1: case REG_TM3CNTL+2: case REG_TM3CNTL+3:
 				printf("Unsupported 8bit write to timer registers");
 				return;
+
+			case REG_IPCSYNC:
+			{
+				u16 ipcsync = T1ReadWord(MMU.MMU_MEM[ARMCPU_ARM7][0x40], 0x180);
+				ipcsync &= 0xFF00;
+				ipcsync |= (val & 0xFF);
+				MMU_IPCSync(ARMCPU_ARM7, ipcsync);
+			}
+			case REG_IPCSYNC+1:
+			{
+				u16 ipcsync = T1ReadWord(MMU.MMU_MEM[ARMCPU_ARM7][0x40], 0x180);
+				ipcsync &= 0x00FF;
+				ipcsync |= ((val & 0xFF) << 8);
+				MMU_IPCSync(ARMCPU_ARM7, ipcsync);
+			}
 
 			case REG_AUXSPIDATA:
 			{

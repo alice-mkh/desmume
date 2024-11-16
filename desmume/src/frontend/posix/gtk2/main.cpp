@@ -104,7 +104,17 @@ static int draw_count;
 extern int _scanline_filter_a, _scanline_filter_b, _scanline_filter_c, _scanline_filter_d;
 VideoFilter* video;
 
+#define GPU_SCALE_FACTOR_MIN 1.0f
+#define GPU_SCALE_FACTOR_MAX 10.0f
+
+float gpu_scale_factor = 1.0f;
+int real_framebuffer_width = GPU_FRAMEBUFFER_NATIVE_WIDTH;
+int real_framebuffer_height = GPU_FRAMEBUFFER_NATIVE_HEIGHT;
+
+
 desmume::config::Config config;
+
+bool in_joy_config_mode = false;
 
 enum {
     MAIN_BG_0 = 0,
@@ -255,7 +265,9 @@ static const char *ui_description =
 "        <menuitem action='winsize_2'/>"
 "        <menuitem action='winsize_2half'/>"
 "        <menuitem action='winsize_3'/>"
+"        <menuitem action='winsize_3half'/>"
 "        <menuitem action='winsize_4'/>"
+"        <menuitem action='winsize_4half'/>"
 "        <menuitem action='winsize_5'/>"
 "        <menuitem action='winsize_scale'/>"
 "        <separator/>"
@@ -529,7 +541,9 @@ enum winsize_enum {
 	WINSIZE_2 = 4,
 	WINSIZE_2HALF = 5,
 	WINSIZE_3 = 6,
+	WINSIZE_3HALF = 7,
 	WINSIZE_4 = 8,
+	WINSIZE_4HALF = 9,
 	WINSIZE_5 = 10,
 };
 
@@ -542,7 +556,9 @@ static const GtkRadioActionEntry winsize_entries[] = {
 	{ "winsize_2", NULL, "_2x", NULL, NULL, WINSIZE_2 },
 	{ "winsize_2half", NULL, "2.5x", NULL, NULL, WINSIZE_2HALF },
 	{ "winsize_3", NULL, "_3x", NULL, NULL, WINSIZE_3 },
+	{ "winsize_3half", NULL, "3.5x", NULL, NULL, WINSIZE_3HALF },
 	{ "winsize_4", NULL, "_4x", NULL, NULL, WINSIZE_4 },
+	{ "winsize_4half", NULL, "4.5x", NULL, NULL, WINSIZE_4HALF },
 	{ "winsize_5", NULL, "_5x", NULL, NULL, WINSIZE_5 },
 	{ "winsize_scale", NULL, "_Scale to window", NULL, NULL, WINSIZE_SCALE },
 };
@@ -1676,7 +1692,8 @@ static int ConfigureDrawingArea(GtkWidget *widget, GdkEventConfigure *event, gpo
 
 static inline void gpu_screen_to_rgb(u32* dst)
 {
-    ColorspaceConvertBuffer555xTo8888Opaque<false, false, BESwapDst>(GPU->GetDisplayInfo().masterNativeBuffer16, dst, GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2);
+    ColorspaceConvertBuffer555xTo8888Opaque<false, false, BESwapDst>(GPU->GetDisplayInfo().isCustomSizeRequested ? (u16*)(GPU->GetDisplayInfo().masterCustomBuffer) : GPU->GetDisplayInfo().masterNativeBuffer16,
+		dst, real_framebuffer_width * real_framebuffer_height * 2);
 }
 
 static inline void drawScreen(cairo_t* cr, u32* buf, gint w, gint h) {
@@ -1750,7 +1767,7 @@ static gboolean ExposeDrawingArea (GtkWidget *widget, GdkEventExpose *event, gpo
 	gint dstW = video->GetDstWidth();
 	gint dstH = video->GetDstHeight();
 
-	gint dstScale = dstW * 2 / 256; // Actual scale * 2 to handle 1.5x filters
+	gint dstScale = dstW * 2 / GPU_FRAMEBUFFER_NATIVE_WIDTH; // Actual scale * 2 to handle 1.5x filters
 	
 	gint gap = nds_screen.orientation == ORIENT_VERTICAL ? nds_screen.gap_size * dstScale / 2 : 0;
 	gint imgW, imgH;
@@ -1801,9 +1818,11 @@ static gboolean ExposeDrawingArea (GtkWidget *widget, GdkEventExpose *event, gpo
 }
 
 static void RedrawScreen() {
-	ColorspaceConvertBuffer555xTo8888Opaque<true, false, BESwapDst>(GPU->GetDisplayInfo().masterNativeBuffer16, (uint32_t *)video->GetSrcBufferPtr(), GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT * 2);
+	ColorspaceConvertBuffer555xTo8888Opaque<true, false, BESwapDst>(
+		GPU->GetDisplayInfo().isCustomSizeRequested ? (u16*)(GPU->GetDisplayInfo().masterCustomBuffer) : GPU->GetDisplayInfo().masterNativeBuffer16,
+		(uint32_t *)video->GetSrcBufferPtr(), real_framebuffer_width * real_framebuffer_height * 2);
 #ifdef HAVE_LIBAGG
-	aggDraw.hud->attach((u8*)video->GetSrcBufferPtr(), 256, 384, 1024);
+	aggDraw.hud->attach((u8*)video->GetSrcBufferPtr(), real_framebuffer_width, real_framebuffer_height * 2, 1024 * gpu_scale_factor);
 	osd->update();
 	DrawHUD();
 	osd->clear();
@@ -2192,12 +2211,18 @@ static void Modify_Key(GtkWidget* widget, gpointer data)
 
 }
 
+#include "../shared/gdksdl.cpp"
+
 static void Edit_Controls()
 {
     GtkWidget *ecDialog;
     GtkWidget *ecKey;
     gchar *Key_Label;
+    u32 keyboard_cfg_sdl[NB_KEYS];
     int i;
+
+    g_assert(sizeof(Keypad_Temp) == sizeof(keyboard_cfg) &&
+        sizeof(keyboard_cfg) == sizeof(keyboard_cfg_sdl));
 
     memcpy(&Keypad_Temp, &keyboard_cfg, sizeof(keyboard_cfg));
 
@@ -2220,8 +2245,17 @@ static void Edit_Controls()
 
     switch (gtk_dialog_run(GTK_DIALOG(ecDialog))) {
     case GTK_RESPONSE_OK:
-        memcpy(&keyboard_cfg, &Keypad_Temp, sizeof(keyboard_cfg));
-        desmume_config_update_keys(keyfile);
+        /* convert keycodes to SDL for the cli frontend, since it has no config menu */
+        for (i = 0; i < NB_KEYS; ++i) {
+            int sk = gdk_to_sdl_keycode(Keypad_Temp[i]);
+            /* if we don't know the keycode, chances are that SDL knows it anyways */
+            if (sk == -1) sk = (u32) Keypad_Temp[i];
+            keyboard_cfg_sdl[i] = sk;
+        }
+        memcpy(keyboard_cfg, keyboard_cfg_sdl, sizeof(keyboard_cfg));
+        desmume_config_update_keys(keyfile, "SDLKEYS");
+        memcpy(keyboard_cfg, Keypad_Temp, sizeof(keyboard_cfg));
+        desmume_config_update_keys(keyfile, "KEYS");
         break;
     case GTK_RESPONSE_CANCEL:
     case GTK_RESPONSE_NONE:
@@ -2229,6 +2263,66 @@ static void Edit_Controls()
     }
     gtk_widget_destroy(ecDialog);
 
+}
+
+static gboolean JoyKeyAcceptTimerFunc(gpointer data)
+{
+    if(!in_joy_config_mode)
+        return FALSE;
+    SDL_Event event;
+    u16 key;
+    bool done = FALSE;
+    while(SDL_PollEvent(&event) && !done)
+    {
+        switch(event.type)
+        {
+        case SDL_JOYBUTTONDOWN:
+            key = ((get_joystick_number_by_id(event.jbutton.which) & 15) << 12) | JOY_BUTTON << 8 | (event.jbutton.button & 255);
+            done = TRUE;
+            break;
+        case SDL_JOYAXISMOTION:
+            if( ((u32)abs(event.jaxis.value) >> 14) != 0 )
+            {
+                key = ((get_joystick_number_by_id(event.jaxis.which) & 15) << 12) | JOY_AXIS << 8 | ((event.jaxis.axis & 127) << 1);
+                if (event.jaxis.value > 0)
+                    key |= 1;
+                done = TRUE;
+            }
+            break;
+        case SDL_JOYHATMOTION:
+            if (event.jhat.value != SDL_HAT_CENTERED) {
+                key = ((get_joystick_number_by_id(event.jhat.which) & 15) << 12) | JOY_HAT << 8 | ((event.jhat.hat & 63) << 2);
+                if ((event.jhat.value & SDL_HAT_UP) != 0)
+                    key |= JOY_HAT_UP;
+                else if ((event.jhat.value & SDL_HAT_RIGHT) != 0)
+                    key |= JOY_HAT_RIGHT;
+                else if ((event.jhat.value & SDL_HAT_DOWN) != 0)
+                    key |= JOY_HAT_DOWN;
+                else if ((event.jhat.value & SDL_HAT_LEFT) != 0)
+                    key |= JOY_HAT_LEFT;
+                done = TRUE;
+            }
+            break;
+        default:
+            do_process_joystick_device_events(&event);
+            break;
+        }
+    }
+
+    if(done) {
+        struct modify_key_ctx *ctx = (struct modify_key_ctx*)data;
+        ctx->mk_key_chosen = key;
+        gchar* YouPressed = g_strdup_printf("You pressed : %d\nClick OK to keep this key.", ctx->mk_key_chosen);
+        gtk_label_set_text(GTK_LABEL(ctx->label), YouPressed);
+        g_free(YouPressed);
+        return FALSE;
+    }
+    return in_joy_config_mode;
+}
+
+static void JoyKeyAcceptTimerStart(GtkWidget *w, GdkEventFocus *e, struct modify_key_ctx *ctx)
+{
+    g_timeout_add(200, JoyKeyAcceptTimerFunc, ctx);
 }
 
 static void AcceptNewJoyKey(GtkWidget *w, GdkEventFocus *e, struct modify_key_ctx *ctx)
@@ -2253,7 +2347,7 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
     Key = GPOINTER_TO_INT(data);
     /* Joypad keys start at 1 */
     ctx.key_id = Key+1;
-    ctx.mk_key_chosen = 0;
+    ctx.mk_key_chosen = Keypad_Temp[Key];
     Title = g_strdup_printf("Press \"%s\" key ...\n", key_names[Key]);
     mkDialog = gtk_dialog_new_with_buttons(Title,
         GTK_WINDOW(pWindow),
@@ -2266,9 +2360,11 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
     g_free(Title);
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(mkDialog))), ctx.label, TRUE, FALSE, 0);
     gtk_widget_show_all(gtk_dialog_get_content_area(GTK_DIALOG(mkDialog)));
+    
+    in_joy_config_mode = true;
+    g_signal_connect(G_OBJECT(mkDialog), "focus_in_event", G_CALLBACK(JoyKeyAcceptTimerStart), &ctx);
+    JoyKeyAcceptTimerFunc(&ctx);
 
-    g_signal_connect(G_OBJECT(mkDialog), "focus_in_event", G_CALLBACK(AcceptNewJoyKey), &ctx);
-	
     switch(gtk_dialog_run(GTK_DIALOG(mkDialog))) {
     case GTK_RESPONSE_OK:
         Keypad_Temp[Key] = ctx.mk_key_chosen;
@@ -2281,6 +2377,7 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
         ctx.mk_key_chosen = 0;
         break;
     }
+    in_joy_config_mode = false;
 
     gtk_widget_destroy(mkDialog);
 
@@ -2398,8 +2495,16 @@ static void Edit_Joystick_Controls()
 
 
 static void GraphicsSettingsDialog() {
+#if defined(ENABLE_OPENGL_STANDARD) || defined(ENABLE_OPENGL_ES)
+	#define ANY_GL_ENABLED 1
+#else
+	#define ANY_GL_ENABLED 0
+#endif
 	GtkWidget *gsDialog;
 	GtkWidget *gsKey, *coreCombo, *wTable, *wPosterize, *wScale, *wSmoothing, *wMultisample, *wHCInterpolate;
+	GtkWidget *wGPUScale;
+	int trow, tcol;
+	const int nrows = 6 + ANY_GL_ENABLED;
 
 	gsDialog = gtk_dialog_new_with_buttons("Graphics Settings",
 			GTK_WINDOW(pWindow),
@@ -2411,16 +2516,18 @@ static void GraphicsSettingsDialog() {
 			NULL);
 
 
-	wTable = gtk_table_new(2 ,2, TRUE);
+	wTable = gtk_table_new(nrows, 2 /* cols */, TRUE);
 	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(gsDialog))), wTable, TRUE, FALSE, 0);
 
 	// 3D Core
+	trow = tcol = 0;
 	gsKey = gtk_label_new("3D Core:");
 	gtk_misc_set_alignment(GTK_MISC(gsKey), 0.0, 0.5);
-	gtk_table_attach(GTK_TABLE(wTable), gsKey, 0, 1, 0, 1,
+	gtk_table_attach(GTK_TABLE(wTable), gsKey, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 
+	tcol = 1;
 	coreCombo = gtk_combo_box_text_new();
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(coreCombo), 0, "Null");
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(coreCombo), 1, "SoftRasterizer");
@@ -2432,18 +2539,21 @@ static void GraphicsSettingsDialog() {
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(coreCombo), 4, "OpenGL 3.2");
 #endif
 	gtk_combo_box_set_active(GTK_COMBO_BOX(coreCombo), cur3DCore);
-	gtk_table_attach(GTK_TABLE(wTable), coreCombo, 1, 2, 0, 1,
+
+	gtk_table_attach(GTK_TABLE(wTable), coreCombo, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 
 
 	// 3D Texture Upscaling
+	++trow, tcol = 0;
 	gsKey = gtk_label_new("3D Texture Upscaling:");
 	gtk_misc_set_alignment(GTK_MISC(gsKey), 0.0, 0.5);
-	gtk_table_attach(GTK_TABLE(wTable), gsKey, 0, 1, 1, 2,
+	gtk_table_attach(GTK_TABLE(wTable), gsKey, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 
+	tcol = 1;
 	wScale = gtk_combo_box_text_new();
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(wScale), 0, "x1");
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(wScale), 1, "x2");
@@ -2451,35 +2561,55 @@ static void GraphicsSettingsDialog() {
 
 	// The shift it work for scale up to 4. For scaling more than 4, a mapping function is required
 	gtk_combo_box_set_active(GTK_COMBO_BOX(wScale), CommonSettings.GFX3D_Renderer_TextureScalingFactor >> 1);
-	gtk_table_attach(GTK_TABLE(wTable), wScale, 1, 2, 1, 2,
+	gtk_table_attach(GTK_TABLE(wTable), wScale, tcol, tcol+1, trow, trow+1,
+			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
+			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
+
+
+	//GPU scaling factor
+	++trow, tcol = 0;
+	gsKey = gtk_label_new("GPU scale factor:");
+	gtk_misc_set_alignment(GTK_MISC(gsKey), 0.0, 0.5);
+	gtk_table_attach(GTK_TABLE(wTable), gsKey, tcol, tcol+1, trow, trow+1,
+			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
+			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
+
+	tcol = 1;
+	wGPUScale = gtk_spin_button_new_with_range(GPU_SCALE_FACTOR_MIN, GPU_SCALE_FACTOR_MAX, 0.5);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(wGPUScale), gpu_scale_factor);
+	gtk_table_attach(GTK_TABLE(wTable), wGPUScale, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 
 
 	// 3D Texture Deposterization
+	++trow, tcol = 0;
 	wPosterize = gtk_check_button_new_with_label("3D Texture Deposterization");
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(wPosterize), CommonSettings.GFX3D_Renderer_TextureDeposterize);
-	gtk_table_attach(GTK_TABLE(wTable), wPosterize, 0, 1, 2, 3,
+	gtk_table_attach(GTK_TABLE(wTable), wPosterize, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 0, 0);
 
 
 	// 3D Texture Smoothing
+	++trow, tcol = 0;
 	wSmoothing = gtk_check_button_new_with_label("3D Texture Smoothing");
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(wSmoothing), CommonSettings.GFX3D_Renderer_TextureSmoothing);
-	gtk_table_attach(GTK_TABLE(wTable), wSmoothing, 0, 1, 3, 4,
+	gtk_table_attach(GTK_TABLE(wTable), wSmoothing, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 0, 0);
 
 
-#if defined(ENABLE_OPENGL_STANDARD) || defined(ENABLE_OPENGL_ES)
+#if ANY_GL_ENABLED
 	// OpenGL Multisample
+	++trow, tcol = 0;
 	gsKey = gtk_label_new("Multisample Antialiasing (OpenGL):");
 	gtk_misc_set_alignment(GTK_MISC(gsKey), 0.0, 0.5);
-	gtk_table_attach(GTK_TABLE(wTable), gsKey, 0, 1, 4, 5,
+	gtk_table_attach(GTK_TABLE(wTable), gsKey, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 
+	tcol = 1;
 	wMultisample = gtk_combo_box_text_new();
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(wMultisample), 0, "None");
 	gtk_combo_box_text_insert_text(GTK_COMBO_BOX_TEXT(wMultisample), 1, "2");
@@ -2493,15 +2623,16 @@ static void GraphicsSettingsDialog() {
 	// find smallest option that is larger than current value, i.e. round up to power of 2
 	while (multisampleSizes[currentActive] < currentMultisample && currentActive < 5) { currentActive++; }
 	gtk_combo_box_set_active(GTK_COMBO_BOX(wMultisample), currentActive);
-	gtk_table_attach(GTK_TABLE(wTable), wMultisample, 1, 2, 4, 5,
+	gtk_table_attach(GTK_TABLE(wTable), wMultisample, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 5, 0);
 #endif
 
 	// SoftRasterizer High Color Interpolation
+	++trow, tcol = 0;
 	wHCInterpolate = gtk_check_button_new_with_label("High Resolution Color Interpolation (SoftRasterizer)");
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(wHCInterpolate), CommonSettings.GFX3D_HighResolutionInterpolateColor);
-	gtk_table_attach(GTK_TABLE(wTable), wHCInterpolate, 1, 2, 3, 4,
+	gtk_table_attach(GTK_TABLE(wTable), wHCInterpolate, tcol, tcol+1, trow, trow+1,
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL),
 			static_cast<GtkAttachOptions>(GTK_EXPAND | GTK_FILL), 10, 0);
 
@@ -2602,16 +2733,29 @@ static void GraphicsSettingsDialog() {
 		default:
 			break;
 		}
+		gpu_scale_factor = gtk_spin_button_get_value(GTK_SPIN_BUTTON(wGPUScale));
+		if(gpu_scale_factor < GPU_SCALE_FACTOR_MIN)
+			gpu_scale_factor = GPU_SCALE_FACTOR_MIN;
+		if(gpu_scale_factor > GPU_SCALE_FACTOR_MAX)
+			gpu_scale_factor = GPU_SCALE_FACTOR_MAX;
+		gtk_spin_button_set_value(GTK_SPIN_BUTTON(wGPUScale), gpu_scale_factor);
+		config.gpuScaleFactor = gpu_scale_factor;
+		real_framebuffer_width = GPU_FRAMEBUFFER_NATIVE_WIDTH * gpu_scale_factor;
+		real_framebuffer_height = GPU_FRAMEBUFFER_NATIVE_HEIGHT * gpu_scale_factor;
+		GPU->SetCustomFramebufferSize(real_framebuffer_width, real_framebuffer_height);
+		video->SetSourceSize(real_framebuffer_width, real_framebuffer_height * 2);
+
 		CommonSettings.GFX3D_Renderer_TextureDeposterize = config.textureDeposterize = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(wPosterize));
 		CommonSettings.GFX3D_Renderer_TextureSmoothing = config.textureSmoothing = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(wSmoothing));
 		CommonSettings.GFX3D_Renderer_TextureScalingFactor = config.textureUpscale = scale;
 		CommonSettings.GFX3D_HighResolutionInterpolateColor = config.highColorInterpolation = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(wHCInterpolate));
-#if defined(ENABLE_OPENGL_STANDARD) || defined(ENABLE_OPENGL_ES)
+#if ANY_GL_ENABLED
 		int selectedMultisample = gtk_combo_box_get_active(GTK_COMBO_BOX(wMultisample));
 		config.multisamplingSize = multisampleSizes[selectedMultisample];
 		config.multisampling = selectedMultisample != 0;
 		CommonSettings.GFX3D_Renderer_MultisampleSize = multisampleSizes[selectedMultisample];
 #endif
+
     }
     // End: OK Response Block
         break;
@@ -2661,7 +2805,7 @@ static void Printscreen()
     const gchar *dir;
     gchar *filename = NULL, *filen = NULL;
     GError *error = NULL;
-    u8 rgb[256 * 384 * 4];
+    u8 *rgb = (u8*)malloc(real_framebuffer_width * real_framebuffer_height * 2 * 4);
     static int seq = 0;
     gint H, W;
 
@@ -2670,11 +2814,11 @@ static void Printscreen()
     //    return;
 
     if (nds_screen.rotation_angle == 0 || nds_screen.rotation_angle == 180) {
-        W = screen_size[nds_screen.orientation].width;
-        H = screen_size[nds_screen.orientation].height;
+        W = real_framebuffer_width;
+        H = real_framebuffer_height * 2;
     } else {
-        W = screen_size[nds_screen.orientation].height;
-        H = screen_size[nds_screen.orientation].width;
+        W = real_framebuffer_height * 2;
+        H = real_framebuffer_width;
     }
 
     gpu_screen_to_rgb((u32*)rgb);
@@ -2711,7 +2855,7 @@ static void Printscreen()
         seq--;
     }
 
-    //free(rgb);
+    free(rgb);
     g_object_unref(screenshot);
     g_free(filename);
     g_free(filen);
@@ -2959,7 +3103,8 @@ gboolean EmuLoop(gpointer data)
 #endif
 
     /* Merge the joystick keys with the keyboard ones */
-    process_joystick_events(&keys_latch);
+    if(!in_joy_config_mode)
+        process_joystick_events(&keys_latch);
     /* Update! */
     update_keypad(keys_latch);
 
@@ -3304,6 +3449,13 @@ static gboolean timeout_exit_cb(gpointer data)
     return FALSE;
 }
 
+static gboolean OutOfLoopJoyDeviceCheckTimerFunc(gpointer data)
+{
+    if(!regMainLoop && !in_joy_config_mode)
+        process_joystick_device_events();
+    return !regMainLoop;
+}
+
 static int
 common_gtk_main( class configured_features *my_config)
 {
@@ -3453,8 +3605,18 @@ common_gtk_main( class configured_features *my_config)
     memset(&nds_screen, 0, sizeof(nds_screen));
     nds_screen.orientation = ORIENT_VERTICAL;
 
+    gpu_scale_factor = config.gpuScaleFactor;
+    if(gpu_scale_factor < GPU_SCALE_FACTOR_MIN)
+        gpu_scale_factor = GPU_SCALE_FACTOR_MIN;
+    if(gpu_scale_factor > GPU_SCALE_FACTOR_MAX)
+        gpu_scale_factor = GPU_SCALE_FACTOR_MAX;
+    config.gpuScaleFactor = gpu_scale_factor;
+    real_framebuffer_width = GPU_FRAMEBUFFER_NATIVE_WIDTH * gpu_scale_factor;
+    real_framebuffer_height = GPU_FRAMEBUFFER_NATIVE_HEIGHT * gpu_scale_factor;
+
     g_printerr("Using %d threads for video filter.\n", CommonSettings.num_cores);
-    video = new VideoFilter(256, 384, VideoFilterTypeID_None, CommonSettings.num_cores);
+    GPU->SetCustomFramebufferSize(real_framebuffer_width, real_framebuffer_height);
+    video = new VideoFilter(real_framebuffer_width, real_framebuffer_height * 2, VideoFilterTypeID_None, CommonSettings.num_cores);
 
     /* Create the window */
     pWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -3855,6 +4017,7 @@ common_gtk_main( class configured_features *my_config)
     video->SetFilterParameteri(VF_PARAM_SCANLINE_D, _scanline_filter_d);
 
 	RedrawScreen();
+	g_timeout_add(200, OutOfLoopJoyDeviceCheckTimerFunc, 0);
     /* Main loop */
     gtk_main();
 

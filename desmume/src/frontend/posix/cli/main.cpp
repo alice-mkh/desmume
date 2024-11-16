@@ -526,10 +526,8 @@ int main(int argc, char ** argv) {
   /* Initialize joysticks */
   if(!init_joy()) return 1;
   /* Load keyboard and joystick configuration */
-  keyfile = desmume_config_read_file(cli_kb_cfg);
+  keyfile = desmume_config_read_file(cli_kb_cfg, "SDLKEYS");
   desmume_config_dispose(keyfile);
-  /* Since gtk has a different mapping the keys stop to work with the saved configuration :| */
-  load_default_config(cli_kb_cfg);
 
   if(my_config.load_slot != -1){
     loadstate_slot(my_config.load_slot);
@@ -548,7 +546,6 @@ int main(int argc, char ** argv) {
   osd = new OSDCLASS(-1);
 #endif
 
-  ctrls_cfg.boost = 0;
   ctrls_cfg.sdl_quit = 0;
   ctrls_cfg.auto_pause = my_config.auto_pause;
   ctrls_cfg.focused = 1;
@@ -579,7 +576,7 @@ int main(int argc, char ** argv) {
 #ifdef DISPLAY_FPS
     now = SDL_GetTicks();
 #endif
-    if ( !my_config.disable_limiter && !ctrls_cfg.boost) {
+    if ( !my_config.disable_limiter && !(ctrls_cfg.keypad & KEYMASK_(KEY_BOOST - 1))) {
 #ifndef DISPLAY_FPS
       now = SDL_GetTicks();
 #endif

@@ -115,6 +115,7 @@ int real_framebuffer_height = GPU_FRAMEBUFFER_NATIVE_HEIGHT;
 
 
 desmume::config::Config config;
+bool in_joy_config_mode = false;
 
 #ifdef GDB_STUB
 gdbstub_handle_t arm9_gdb_stub = NULL;
@@ -306,7 +307,9 @@ enum winsize_enum {
 	WINSIZE_2 = 4,
 	WINSIZE_2HALF = 5,
 	WINSIZE_3 = 6,
+	WINSIZE_3HALF = 7,
 	WINSIZE_4 = 8,
+	WINSIZE_4HALF = 9,
 	WINSIZE_5 = 10,
 };
 
@@ -1331,8 +1334,12 @@ static void SetWinsize(GSimpleAction *action, GVariant *parameter, gpointer user
         winsize = WINSIZE_2HALF;
     else if (strcmp(string, "3") == 0)
         winsize = WINSIZE_3;
+    else if (strcmp(string, "3.5") == 0)
+        winsize = WINSIZE_3HALF;
     else if (strcmp(string, "4") == 0)
         winsize = WINSIZE_4;
+    else if (strcmp(string, "4.5") == 0)
+        winsize = WINSIZE_4HALF;
     else if (strcmp(string, "5") == 0)
         winsize = WINSIZE_5;
     winsize_current = winsize;
@@ -2075,6 +2082,66 @@ static void Edit_Controls(GSimpleAction *action, GVariant *parameter, gpointer u
 
 }
 
+static gboolean JoyKeyAcceptTimerFunc(gpointer data)
+{
+    if(!in_joy_config_mode)
+        return FALSE;
+    SDL_Event event;
+    u16 key;
+    bool done = FALSE;
+    while(SDL_PollEvent(&event) && !done)
+    {
+        switch(event.type)
+        {
+        case SDL_JOYBUTTONDOWN:
+            key = ((get_joystick_number_by_id(event.jbutton.which) & 15) << 12) | JOY_BUTTON << 8 | (event.jbutton.button & 255);
+            done = TRUE;
+            break;
+        case SDL_JOYAXISMOTION:
+            if( ((u32)abs(event.jaxis.value) >> 14) != 0 )
+            {
+                key = ((get_joystick_number_by_id(event.jaxis.which) & 15) << 12) | JOY_AXIS << 8 | ((event.jaxis.axis & 127) << 1);
+                if (event.jaxis.value > 0)
+                    key |= 1;
+                done = TRUE;
+            }
+            break;
+        case SDL_JOYHATMOTION:
+            if (event.jhat.value != SDL_HAT_CENTERED) {
+                key = ((get_joystick_number_by_id(event.jhat.which) & 15) << 12) | JOY_HAT << 8 | ((event.jhat.hat & 63) << 2);
+                if ((event.jhat.value & SDL_HAT_UP) != 0)
+                    key |= JOY_HAT_UP;
+                else if ((event.jhat.value & SDL_HAT_RIGHT) != 0)
+                    key |= JOY_HAT_RIGHT;
+                else if ((event.jhat.value & SDL_HAT_DOWN) != 0)
+                    key |= JOY_HAT_DOWN;
+                else if ((event.jhat.value & SDL_HAT_LEFT) != 0)
+                    key |= JOY_HAT_LEFT;
+                done = TRUE;
+            }
+            break;
+        default:
+            do_process_joystick_device_events(&event);
+            break;
+        }
+    }
+    
+    if(done) {
+        struct modify_key_ctx *ctx = (struct modify_key_ctx*)data;
+        ctx->mk_key_chosen = key;
+        gchar* YouPressed = g_strdup_printf("You pressed : %d\nClick OK to keep this key.", ctx->mk_key_chosen);
+        gtk_label_set_text(GTK_LABEL(ctx->label), YouPressed);
+        g_free(YouPressed);
+        return FALSE;
+    }
+    return in_joy_config_mode;
+}
+
+static void JoyKeyAcceptTimerStart(GtkWidget *w, GdkEventFocus *e, struct modify_key_ctx *ctx)
+{
+    g_timeout_add(200, JoyKeyAcceptTimerFunc, ctx);
+}
+
 static void AcceptNewJoyKey(GtkWidget *w, GdkEventFocus *e, struct modify_key_ctx *ctx)
 {
     gchar *YouPressed;
@@ -2097,7 +2164,7 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
     Key = GPOINTER_TO_INT(data);
     /* Joypad keys start at 1 */
     ctx.key_id = Key+1;
-    ctx.mk_key_chosen = 0;
+    ctx.mk_key_chosen = Keypad_Temp[Key];
     Title = g_strdup_printf("Press \"%s\" key ...\n", key_names[Key]);
     mkDialog = gtk_dialog_new_with_buttons(Title,
         GTK_WINDOW(pWindow),
@@ -2111,7 +2178,9 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(mkDialog))), ctx.label, TRUE, FALSE, 0);
     gtk_widget_show_all(gtk_dialog_get_content_area(GTK_DIALOG(mkDialog)));
 
-    g_signal_connect(G_OBJECT(mkDialog), "focus_in_event", G_CALLBACK(AcceptNewJoyKey), &ctx);
+    in_joy_config_mode = true;
+    g_signal_connect(G_OBJECT(mkDialog), "focus_in_event", G_CALLBACK(JoyKeyAcceptTimerStart), &ctx);
+    JoyKeyAcceptTimerFunc(&ctx);
 	
     switch(gtk_dialog_run(GTK_DIALOG(mkDialog))) {
     case GTK_RESPONSE_OK:
@@ -2125,6 +2194,7 @@ static void Modify_JoyKey(GtkWidget* widget, gpointer data)
         ctx.mk_key_chosen = 0;
         break;
     }
+    in_joy_config_mode = false;
 
     gtk_widget_destroy(mkDialog);
 
@@ -2232,7 +2302,7 @@ static void GraphicsSettingsDialog(GSimpleAction *action, GVariant *parameter, g
 	wScale = GTK_COMBO_BOX(gtk_builder_get_object(builder, "scale"));
 	wGPUScale = GTK_SPIN_BUTTON(gtk_builder_get_object(builder, "gpuscale"));
 	gtk_spin_button_set_range(wGPUScale, GPU_SCALE_FACTOR_MIN, GPU_SCALE_FACTOR_MAX);
-	gtk_spin_button_set_increments(wGPUScale, 1.0, 1.0);
+	gtk_spin_button_set_increments(wGPUScale, 0.5, 1.0);
 	wMultisample = GTK_COMBO_BOX(gtk_builder_get_object(builder, "multisample"));
 	wPosterize = GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "posterize"));
 	wSmoothing = GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder, "smoothing"));
@@ -2852,7 +2922,8 @@ gboolean EmuLoop(gpointer data)
 #endif
 
     /* Merge the joystick keys with the keyboard ones */
-    process_joystick_events(&keys_latch);
+    if(!in_joy_config_mode)
+        process_joystick_events(&keys_latch);
     /* Update! */
     update_keypad(keys_latch);
 
@@ -3256,6 +3327,13 @@ static gboolean timeout_exit_cb(gpointer data)
     INFO("Quit after %d seconds timeout\n", GPOINTER_TO_INT(data));
 
     return FALSE;
+}
+
+static gboolean OutOfLoopJoyDeviceCheckTimerFunc(gpointer data)
+{
+    if(!regMainLoop && !in_joy_config_mode)
+        process_joystick_device_events();
+    return !regMainLoop;
 }
 
 static void
@@ -3702,8 +3780,14 @@ common_gtk_main(GApplication *app, gpointer user_data)
         case WINSIZE_3:
             string = "3";
             break;
+        case WINSIZE_3HALF:
+            string = "3.5";
+            break;
         case WINSIZE_4:
             string = "4";
+            break;
+        case WINSIZE_4HALF:
+            string = "4.5";
             break;
         case WINSIZE_5:
             string = "5";
@@ -4056,6 +4140,7 @@ common_gtk_main(GApplication *app, gpointer user_data)
     video->SetFilterParameteri(VF_PARAM_SCANLINE_D, _scanline_filter_d);
 
 	RedrawScreen();
+	g_timeout_add(200, OutOfLoopJoyDeviceCheckTimerFunc, 0);
 }
 
 static void Teardown() {
