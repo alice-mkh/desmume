@@ -1,12 +1,21 @@
 project('desmume',
   ['c', 'cpp'],
-  version: '2.7.10',
+  version: '0.9.13',
   meson_version: '>= 0.65',
   default_options: [
     'cpp_std=c++14',
   ],
   license: 'GPL2+',
 )
+
+version = run_command('git', 'describe', '--always', '--tags').stdout().strip()
+
+if version == ''
+  version = meson.project_version()
+else
+  # release_0_9_13 -> 0.9.13
+  version = '.'.join(version.replace('release_', '').split('_'))
+endif
 
 dep_glib2 = dependency('glib-2.0')
 dep_sdl = dependency('sdl2')
@@ -262,6 +271,12 @@ shared_library('desmume-highscore',
   install: true,
 )
 
-install_data('desmume.highscore',
+descriptor = configuration_data()
+descriptor.set('version', version)
+configure_file(
+  input: 'desmume.highscore.in',
+  output: 'desmume.highscore',
+  configuration: descriptor,
   install_dir: cores_dir,
+  install: true
 )
