@@ -8,7 +8,7 @@ project('desmume',
   license: 'GPL2+',
 )
 
-version = run_command('git', 'describe', '--always', '--tags').stdout().strip()
+version = run_command('git', 'describe', '--always', '--tags --dirty').stdout().strip()
 
 if version == ''
   version = meson.project_version()
