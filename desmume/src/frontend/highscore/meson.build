@@ -8,14 +8,8 @@ project('desmume',
   license: 'GPL2+',
 )
 
-version = run_command('git', 'describe', '--always', '--tags', '--dirty').stdout().strip()
-
-if version == ''
-  version = meson.project_version()
-else
-  # release_0_9_13 -> 0.9.13
-  version = '.'.join(version.replace('release_', '').split('_'))
-endif
+commit = run_command('git', 'describe', '--always', '--dirty').stdout().strip()
+version = meson.project_version()
 
 dep_glib2 = dependency('glib-2.0')
 dep_sdl = dependency('sdl2')
@@ -273,6 +267,7 @@ shared_library('desmume-highscore',
 
 descriptor = configuration_data()
 descriptor.set('version', version)
+descriptor.set('commit', commit)
 configure_file(
   input: 'desmume.highscore.in',
   output: 'desmume.highscore',
