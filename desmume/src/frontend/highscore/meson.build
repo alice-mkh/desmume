@@ -243,11 +243,11 @@ simd = import('unstable-simd')
 cxx = meson.get_compiler('cpp')
 rval = simd.check('colorspacehandler',
   sse2: '../../utils/colorspacehandler/colorspacehandler_SSE2.cpp',
-  # TODO: add these two even in generic builds.
-  #avx2: '../../utils/colorspacehandler/colorspacehandler_AVX2.cpp',
+  avx2: '../../utils/colorspacehandler/colorspacehandler_AVX2.cpp',
   #avx512: '../../utils/colorspacehandler/colorspacehandler_AVX512.cpp',
   # TODO: add support for this in meson.
   #altivec: '../../utils/colorspacehandler/colorspacehandler_AltiVec.cpp',
+  neon: '../../utils/colorspacehandler/colorspacehandler_NEON.cpp',
   compiler: cxx,
   include_directories: includes,
 )
