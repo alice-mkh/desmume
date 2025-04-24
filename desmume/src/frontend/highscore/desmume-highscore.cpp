@@ -4,6 +4,7 @@
 #include "../debug.h"
 #include "../GPU.h"
 #include "../NDSSystem.h"
+#include "../OGLRender.h"
 #include "../SPU.h"
 #include "../mic.h"
 #include "../path.h"
@@ -11,8 +12,11 @@
 #include "../render3D.h"
 #include "../saves.h"
 
-#include "../OGLRender.h"
+#ifdef USE_GLES
+#include "../OGLRender_ES3.h"
+#else
 #include "../OGLRender_3_2.h"
+#endif
 
 #ifdef ENABLE_SSE2
 #include <emmintrin.h>
@@ -89,16 +93,24 @@ get_audio_space ()
 }
 
 #define GPU3D_SOFTRASTERIZER 1
-#define GPU3D_OPENGL_AUTO 2
-#define GPU3D_OPENGL 3
-#define GPU3D_OPENGL_OLD 4
+#if USE_GLES
+# define GPU3D_OPENGL_AUTO 2
+#else
+# define GPU3D_OPENGL_AUTO 2
+# define GPU3D_OPENGL 3
+# define GPU3D_OPENGL_OLD 4
+#endif
 
 GPU3DInterface *core3DList[] = {
   &gpu3DNull,
   &gpu3DRasterize,
+#if USE_GLES
+  &gpu3Dgl_ES_3_0,
+#else
   &gpu3Dgl,
   &gpu3Dgl_3_2,
   &gpu3DglOld,
+#endif
   NULL
 };
 
@@ -250,10 +262,21 @@ desmume_core_load_rom (HsCore      *core,
   oglrender_endOpenGL = highscore_gl_end;
   oglrender_framebufferDidResizeCallback = highscore_gl_resize;
 
+#ifdef USE_GLES
+  OGLLoadEntryPoints_ES_3_0_Func = OGLLoadEntryPoints_ES_3_0;
+  OGLCreateRenderer_ES_3_0_Func = OGLCreateRenderer_ES_3_0;
+#else
   OGLLoadEntryPoints_3_2_Func = OGLLoadEntryPoints_3_2;
   OGLCreateRenderer_3_2_Func = OGLCreateRenderer_3_2;
+#endif
 
-  self->gl_context = hs_core_create_gl_context (core, HS_GL_API_GL, 3, 2, (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
+  self->gl_context = hs_core_create_gl_context (core,
+#ifdef USE_GLES
+                                                HS_GL_API_GLES, 3, 0,
+#else
+                                                HS_GL_API_GL, 3, 2,
+#endif
+                                                (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
 
   g_autoptr (GError) gl_error = NULL;
   if (hs_gl_context_realize (self->gl_context, &gl_error)) {

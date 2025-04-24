@@ -35,6 +35,8 @@ else
   have_jit = false
 endif
 
+use_gles = cpu == 'arm' or cpu == 'aarch64'
+
 # Clang refuses to compile with this warning
 if meson.get_compiler('cpp').get_id() == 'clang'
   add_global_arguments('-Wno-c++11-narrowing', language: ['c', 'cpp'])
@@ -105,6 +107,7 @@ libdesmume_src += [
   '../../wifi.cpp',
   '../../MMU.cpp',
   '../../NDSSystem.cpp',
+  '../../OGLRender.cpp',
   '../../ROMReader.cpp',
   '../../render3D.cpp',
   '../../rtc.cpp',
@@ -234,10 +237,13 @@ if have_jit
   endif
 endif
 
-libdesmume_src += [
-  '../../OGLRender.cpp',
-  '../../OGLRender_3_2.cpp',
-]
+
+if use_gles
+  libdesmume_src += '../../OGLRender_ES3.cpp'
+  add_global_arguments('-DUSE_GLES', languages: ['c', 'cpp'])
+else
+  libdesmume_src += '../../OGLRender_3_2.cpp'
+endif
 
 simd = import('unstable-simd')
 cxx = meson.get_compiler('cpp')
