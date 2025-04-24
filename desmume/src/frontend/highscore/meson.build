@@ -108,6 +108,7 @@ libdesmume_src += [
   '../../MMU.cpp',
   '../../NDSSystem.cpp',
   '../../OGLRender.cpp',
+  '../../OGLRender_3_2.cpp',
   '../../ROMReader.cpp',
   '../../render3D.cpp',
   '../../rtc.cpp',
@@ -241,8 +242,6 @@ endif
 if use_gles
   libdesmume_src += '../../OGLRender_ES3.cpp'
   add_global_arguments('-DUSE_GLES', language: ['c', 'cpp'])
-else
-  libdesmume_src += '../../OGLRender_3_2.cpp'
 endif
 
 simd = import('unstable-simd')
