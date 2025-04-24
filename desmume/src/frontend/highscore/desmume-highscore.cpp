@@ -253,7 +253,7 @@ desmume_core_load_rom (HsCore      *core,
   OGLLoadEntryPoints_3_2_Func = OGLLoadEntryPoints_3_2;
   OGLCreateRenderer_3_2_Func = OGLCreateRenderer_3_2;
 
-  self->gl_context = hs_core_create_gl_context (core, HS_GL_PROFILE_CORE, 3, 2, (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
+  self->gl_context = hs_core_create_gl_context (core, HS_GL_API_GL, 3, 2, (HsGLFlags) (HS_GL_FLAGS_DEPTH | HS_GL_FLAGS_DIRECT_FB_ACCESS));
 
   g_autoptr (GError) gl_error = NULL;
   if (hs_gl_context_realize (self->gl_context, &gl_error)) {
