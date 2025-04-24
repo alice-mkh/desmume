@@ -240,7 +240,7 @@ endif
 
 if use_gles
   libdesmume_src += '../../OGLRender_ES3.cpp'
-  add_global_arguments('-DUSE_GLES', languages: ['c', 'cpp'])
+  add_global_arguments('-DUSE_GLES', language: ['c', 'cpp'])
 else
   libdesmume_src += '../../OGLRender_3_2.cpp'
 endif
