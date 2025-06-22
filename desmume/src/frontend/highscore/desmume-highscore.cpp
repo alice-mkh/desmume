@@ -420,7 +420,7 @@ desmume_core_run_frame (HsCore *core)
   if (self->gl_context)
     framebuffer = (u32 *) hs_gl_context_acquire_framebuffer (self->gl_context);
   else
-    framebuffer = (u32 *) hs_software_context_get_framebuffer (self->context);
+    framebuffer = (u32 *) hs_software_context_acquire_framebuffer (self->context);
 
   ColorspaceConvertBuffer555xTo8888Opaque<false, true, BESwapNone> (display_info.masterNativeBuffer16, framebuffer, pix_count * 2);
 
@@ -434,6 +434,8 @@ desmume_core_run_frame (HsCore *core)
   if (self->gl_context) {
     hs_gl_context_release_framebuffer (self->gl_context);
     hs_gl_context_swap_buffers (self->gl_context);
+  } else {
+    hs_software_context_release_framebuffer (self->context);
   }
 }
 
