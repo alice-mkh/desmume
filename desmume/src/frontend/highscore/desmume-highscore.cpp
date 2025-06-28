@@ -317,8 +317,8 @@ desmume_core_start (HsCore *core)
   self->skip_frames = N_BAD_FRAMES;
 }
 
-static void
-desmume_core_reset (HsCore *core, gboolean hard)
+static gboolean
+desmume_core_reset (HsCore *core, gboolean hard, GError **error)
 {
   DeSmuMECore *self = DESMUME_CORE (core);
 
@@ -327,6 +327,8 @@ desmume_core_reset (HsCore *core, gboolean hard)
 
   /* The first couple frames will be bad with GL rendering, skip them */
   self->skip_frames = N_BAD_FRAMES;
+
+  return TRUE;
 }
 
 static void
