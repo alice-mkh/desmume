@@ -258,7 +258,8 @@ rval = simd.check('colorspacehandler',
 )
 colorspacehandler_simd = rval[0]
 
-cores_dir = get_option('prefix') / get_option('libdir') / 'highscore' / 'cores'
+libdir = get_option('prefix') / get_option('libdir')
+core_dir = libdir / 'highscore' / 'cores' / 'desmume'
 
 shared_library('desmume-highscore',
   libdesmume_src,
@@ -266,7 +267,7 @@ shared_library('desmume-highscore',
   include_directories: includes,
   link_with: colorspacehandler_simd,
   name_prefix: '',
-  install_dir : cores_dir,
+  install_dir : core_dir,
   install: true,
 )
 
@@ -277,6 +278,6 @@ configure_file(
   input: 'desmume.highscore.in',
   output: 'desmume.highscore',
   configuration: descriptor,
-  install_dir: cores_dir,
+  install_dir: core_dir,
   install: true
 )
