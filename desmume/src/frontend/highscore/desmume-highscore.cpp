@@ -270,6 +270,7 @@ desmume_core_load_rom (HsCore      *core,
   OGLCreateRenderer_3_2_Func = OGLCreateRenderer_3_2;
 #endif
 
+/* HS_GL_FLAGS_DIRECT_FB_ACCESS is gone
   self->gl_context = hs_core_create_gl_context (core,
 #ifdef USE_GLES
                                                 HS_GL_API_GLES, 3, 0,
@@ -285,6 +286,7 @@ desmume_core_load_rom (HsCore      *core,
     hs_core_log (core, HS_LOG_WARNING, "Failed to initialize GL 3.2 context, falling back to software rasterizer");
     g_clear_object (&self->gl_context);
   }
+*/
 
   if (!self->gl_context || !GPU->Change3DRendererByID (GPU3D_OPENGL_AUTO)) {
     if (self->gl_context) {
@@ -419,9 +421,9 @@ desmume_core_run_frame (HsCore *core)
   const size_t pix_count = GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT;
   u32 *framebuffer;
 
-  if (self->gl_context)
-    framebuffer = (u32 *) hs_gl_context_acquire_framebuffer (self->gl_context);
-  else
+//  if (self->gl_context)
+//    framebuffer = (u32 *) hs_gl_context_acquire_framebuffer (self->gl_context);
+//  else
     framebuffer = (u32 *) hs_software_context_acquire_framebuffer (self->context);
 
   ColorspaceConvertBuffer555xTo8888Opaque<false, true, BESwapNone> (display_info.masterNativeBuffer16, framebuffer, pix_count * 2);
@@ -433,12 +435,12 @@ desmume_core_run_frame (HsCore *core)
       ColorspaceApplyIntensityToBuffer32<false, true> (framebuffer + pix_count * i, pix_count, backlight);
   }
 
-  if (self->gl_context) {
-    hs_gl_context_release_framebuffer (self->gl_context);
-    hs_gl_context_swap_buffers (self->gl_context);
-  } else {
+//  if (self->gl_context) {
+//    hs_gl_context_release_framebuffer (self->gl_context);
+//    hs_gl_context_swap_buffers (self->gl_context);
+//  } else {
     hs_software_context_release_framebuffer (self->context);
-  }
+//  }
 }
 
 static gboolean
