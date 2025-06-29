@@ -1,7 +1,7 @@
 /*
 	Copyright (C) 2006 yopyop
 	Copyright (C) 2007 shash
-	Copyright (C) 2007-2023 DeSmuME team
+	Copyright (C) 2007-2025 DeSmuME team
 
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -88,6 +88,8 @@ enum EDMADestinationUpdate
 class TRegister_32
 {
 public:
+	virtual ~TRegister_32() {}
+	
 	virtual u32 read32() = 0;
 	virtual void write32(const u32 val) = 0;
 	void write(const int size, const u32 adr, const u32 val) { 
@@ -124,6 +126,9 @@ struct TGXSTAT : public TRegister_32
 		fifo_empty = true;
 		fifo_low = false;
 	}
+	
+	virtual ~TGXSTAT() {}
+	
 	u8 tb; //test busy
 	u8 tr; //test result
 	u8 se; //stack error
@@ -246,7 +251,10 @@ public:
 		AddressRegister(u32* _ptr)
 			: ptr(_ptr)
 		{}
-		virtual u32 read32() { 
+		
+		virtual ~AddressRegister() {}
+		
+		virtual u32 read32() {
 			return *ptr;
 		}
 		virtual void write32(const u32 val) {
@@ -259,7 +267,9 @@ public:
 		//we pass in a pointer to the controller here so we can alert it if anything changes
 		DmaController* controller;
 		ControlRegister() {}
-		virtual u32 read32() { 
+		virtual ~ControlRegister() {}
+		
+		virtual u32 read32() {
 			return controller->read32();
 		}
 		virtual void write32(const u32 val) {
@@ -514,24 +524,24 @@ extern MMU_struct_new MMU_new;
 struct armcpu_memory_iface
 {
   /** the 32 bit instruction prefetch */
-  u32 FASTCALL (*prefetch32)( void *data, u32 adr);
+  u32 DESMUME_FASTCALL (*prefetch32)( void *data, u32 adr);
 
   /** the 16 bit instruction prefetch */
-  u16 FASTCALL (*prefetch16)( void *data, u32 adr);
+  u16 DESMUME_FASTCALL (*prefetch16)( void *data, u32 adr);
 
   /** read 8 bit data value */
-  u8 FASTCALL (*read8)( void *data, u32 adr);
+  u8 DESMUME_FASTCALL (*read8)( void *data, u32 adr);
   /** read 16 bit data value */
-  u16 FASTCALL (*read16)( void *data, u32 adr);
+  u16 DESMUME_FASTCALL (*read16)( void *data, u32 adr);
   /** read 32 bit data value */
-  u32 FASTCALL (*read32)( void *data, u32 adr);
+  u32 DESMUME_FASTCALL (*read32)( void *data, u32 adr);
 
   /** write 8 bit data value */
-  void FASTCALL (*write8)( void *data, u32 adr, u8 val);
+  void DESMUME_FASTCALL (*write8)( void *data, u32 adr, u8 val);
   /** write 16 bit data value */
-  void FASTCALL (*write16)( void *data, u32 adr, u16 val);
+  void DESMUME_FASTCALL (*write16)( void *data, u32 adr, u16 val);
   /** write 32 bit data value */
-  void FASTCALL (*write32)( void *data, u32 adr, u32 val);
+  void DESMUME_FASTCALL (*write32)( void *data, u32 adr, u32 val);
 
   void *data;
 };
@@ -545,14 +555,14 @@ void MMU_Reset( void);
 void print_memory_profiling( void);
 
 // Memory reading/writing (old)
-u8 FASTCALL MMU_read8(u32 proc, u32 adr);
-u16 FASTCALL MMU_read16(u32 proc, u32 adr);
-u32 FASTCALL MMU_read32(u32 proc, u32 adr);
-void FASTCALL MMU_write8(u32 proc, u32 adr, u8 val);
-void FASTCALL MMU_write16(u32 proc, u32 adr, u16 val);
-void FASTCALL MMU_write32(u32 proc, u32 adr, u32 val);
+u8 DESMUME_FASTCALL MMU_read8(u32 proc, u32 adr);
+u16 DESMUME_FASTCALL MMU_read16(u32 proc, u32 adr);
+u32 DESMUME_FASTCALL MMU_read32(u32 proc, u32 adr);
+void DESMUME_FASTCALL MMU_write8(u32 proc, u32 adr, u8 val);
+void DESMUME_FASTCALL MMU_write16(u32 proc, u32 adr, u16 val);
+void DESMUME_FASTCALL MMU_write32(u32 proc, u32 adr, u32 val);
  
-//template<int PROCNUM> void FASTCALL MMU_doDMA(u32 num);
+//template<int PROCNUM> void DESMUME_FASTCALL MMU_doDMA(u32 num);
 
 //The base ARM memory interfaces
 extern const armcpu_memory_iface arm9_base_memory_iface;
@@ -645,19 +655,19 @@ template<int PROCNUM> FORCEINLINE void _MMU_write08(u32 addr, u8 val) { _MMU_wri
 template<int PROCNUM> FORCEINLINE void _MMU_write16(u32 addr, u16 val) { _MMU_write16<PROCNUM, MMU_AT_DATA>(addr,val); }
 template<int PROCNUM> FORCEINLINE void _MMU_write32(u32 addr, u32 val) { _MMU_write32<PROCNUM, MMU_AT_DATA>(addr,val); }
 
-void FASTCALL _MMU_ARM9_write08(u32 adr, u8 val);
-void FASTCALL _MMU_ARM9_write16(u32 adr, u16 val);
-void FASTCALL _MMU_ARM9_write32(u32 adr, u32 val);
-u8  FASTCALL _MMU_ARM9_read08(u32 adr);
-u16 FASTCALL _MMU_ARM9_read16(u32 adr);
-u32 FASTCALL _MMU_ARM9_read32(u32 adr);
+void DESMUME_FASTCALL _MMU_ARM9_write08(u32 adr, u8 val);
+void DESMUME_FASTCALL _MMU_ARM9_write16(u32 adr, u16 val);
+void DESMUME_FASTCALL _MMU_ARM9_write32(u32 adr, u32 val);
+u8  DESMUME_FASTCALL _MMU_ARM9_read08(u32 adr);
+u16 DESMUME_FASTCALL _MMU_ARM9_read16(u32 adr);
+u32 DESMUME_FASTCALL _MMU_ARM9_read32(u32 adr);
 
-void FASTCALL _MMU_ARM7_write08(u32 adr, u8 val);
-void FASTCALL _MMU_ARM7_write16(u32 adr, u16 val);
-void FASTCALL _MMU_ARM7_write32(u32 adr, u32 val);
-u8  FASTCALL _MMU_ARM7_read08(u32 adr);
-u16 FASTCALL _MMU_ARM7_read16(u32 adr);
-u32 FASTCALL _MMU_ARM7_read32(u32 adr);
+void DESMUME_FASTCALL _MMU_ARM7_write08(u32 adr, u8 val);
+void DESMUME_FASTCALL _MMU_ARM7_write16(u32 adr, u16 val);
+void DESMUME_FASTCALL _MMU_ARM7_write32(u32 adr, u32 val);
+u8  DESMUME_FASTCALL _MMU_ARM7_read08(u32 adr);
+u16 DESMUME_FASTCALL _MMU_ARM7_read16(u32 adr);
+u32 DESMUME_FASTCALL _MMU_ARM7_read32(u32 adr);
 
 extern u32 partie;
 
@@ -1047,12 +1057,12 @@ FORCEINLINE void _MMU_write32(const int PROCNUM, const MMU_ACCESS_TYPE AT, const
 
 
 //#ifdef MMU_ENABLE_ACL
-//	void FASTCALL MMU_write8_acl(u32 proc, u32 adr, u8 val);
-//	void FASTCALL MMU_write16_acl(u32 proc, u32 adr, u16 val);
-//	void FASTCALL MMU_write32_acl(u32 proc, u32 adr, u32 val);
-//	u8 FASTCALL MMU_read8_acl(u32 proc, u32 adr, u32 access);
-//	u16 FASTCALL MMU_read16_acl(u32 proc, u32 adr, u32 access);
-//	u32 FASTCALL MMU_read32_acl(u32 proc, u32 adr, u32 access);
+//	void DESMUME_FASTCALL MMU_write8_acl(u32 proc, u32 adr, u8 val);
+//	void DESMUME_FASTCALL MMU_write16_acl(u32 proc, u32 adr, u16 val);
+//	void DESMUME_FASTCALL MMU_write32_acl(u32 proc, u32 adr, u32 val);
+//	u8 DESMUME_FASTCALL MMU_read8_acl(u32 proc, u32 adr, u32 access);
+//	u16 DESMUME_FASTCALL MMU_read16_acl(u32 proc, u32 adr, u32 access);
+//	u32 DESMUME_FASTCALL MMU_read32_acl(u32 proc, u32 adr, u32 access);
 //#else
 //	#define MMU_write8_acl(proc, adr, val)  _MMU_write08<proc>(adr, val)
 //	#define MMU_write16_acl(proc, adr, val) _MMU_write16<proc>(adr, val)
@@ -1097,6 +1107,6 @@ FORCEINLINE void _MMU_write16(u32 addr, u16 val) { _MMU_write16(PROCNUM, AT, add
 template<int PROCNUM, MMU_ACCESS_TYPE AT>
 FORCEINLINE void _MMU_write32(u32 addr, u32 val) { _MMU_write32(PROCNUM, AT, addr, val); }
 
-void FASTCALL MMU_DumpMemBlock(u8 proc, u32 address, u32 size, u8 *buffer);
+void DESMUME_FASTCALL MMU_DumpMemBlock(u8 proc, u32 address, u32 size, u8 *buffer);
 
 #endif

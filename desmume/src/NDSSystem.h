@@ -1,6 +1,6 @@
 /*
 	Copyright (C) 2006 yopyop
-	Copyright (C) 2008-2022 DeSmuME team
+	Copyright (C) 2008-2025 DeSmuME team
 
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ enum NDSErrorTag
 	NDSErrorTag_None		= 0,
 	NDSErrorTag_ARM9		= 1,
 	NDSErrorTag_ARM7		= 2,
-	NDSErrorTag_BothCPUs	= 3,
+	NDSErrorTag_BothCPUs	= 3
 };
 
 struct NDSError
@@ -346,26 +346,11 @@ struct GameInfo
 	NDS_header header;
 	//a copy of the pristine secure area from the rom
 	u8	secureArea[0x4000];
-	RomBanner	banner;
+	RomBanner banner;
 	const RomBanner& getRomBanner();
 
-	GameInfo() :	fROM(NULL),
-					romdataForReader(NULL),
-					crc(0),
-					chipID(0x00000FC2),
-					romsize(0),
-					cardSize(0),
-					mask(0),
-					romType(ROM_NDS),
-					headerOffset(0),
-					_isDSiEnhanced(false)
-	{
-		memset(&header, 0, sizeof(header));
-		memset(&ROMserial[0], 0, sizeof(ROMserial));
-		memset(&ROMname[0], 0, sizeof(ROMname));
-	}
-
-	~GameInfo() { closeROM(); }
+	GameInfo();
+	~GameInfo();
 
 	bool IsCode(const char* code) const;
 
@@ -377,7 +362,6 @@ struct GameInfo
 	bool isDSiEnhanced();
 	bool isHomebrew();
 	bool hasRomBanner();
-	
 };
 
 typedef struct TSCalInfo
@@ -495,71 +479,16 @@ template<bool FORCE> void NDS_exec(s32 nb = 560190<<1);
 
 extern int lagframecounter;
 
+enum MicMode
+{
+	MicMode_InternalNoise = 0,
+	MicMode_Sample        = 1,
+	MicMode_Random        = 2,
+	MicMode_Physical      = 3
+};
+
 extern struct TCommonSettings
 {
-	TCommonSettings() 
-		: GFX3D_HighResolutionInterpolateColor(true)
-		, GFX3D_EdgeMark(true)
-		, GFX3D_Fog(true)
-		, GFX3D_Texture(true)
-		, GFX3D_LineHack(true)
-		, GFX3D_Renderer_MultisampleSize(0)
-		, GFX3D_Renderer_TextureScalingFactor(1) // Possible values: 1, 2, 4
-		, GFX3D_Renderer_TextureDeposterize(false)
-		, GFX3D_Renderer_TextureSmoothing(false)
-		, GFX3D_TXTHack(false)
-		, OpenGL_Emulation_ShadowPolygon(true)
-		, OpenGL_Emulation_SpecialZeroAlphaBlending(true)
-		, OpenGL_Emulation_NDSDepthCalculation(true)
-		, OpenGL_Emulation_DepthLEqualPolygonFacing(false)
-		, jit_max_block_size(12)
-		, loadToMemory(false)
-		, UseExtBIOS(false)
-		, SWIFromBIOS(false)
-		, PatchSWI3(false)
-		, UseExtFirmware(false)
-		, UseExtFirmwareSettings(false)
-		, RetailCardProtection8000(true)
-		, BootFromFirmware(false)
-		, DebugConsole(false)
-		, EnsataEmulation(false)
-		, cheatsDisable(false)
-		, rigorous_timing(false)
-		, advanced_timing(true)
-		, micMode(InternalNoise)
-		, spuInterpolationMode(2)
-		, manualBackupType(0)
-		, autodetectBackupMethod(0)
-		, spu_captureMuted(false)
-		, spu_advanced(true)
-		, StylusPressure(50)
-		, ConsoleType(NDS_CONSOLE_TYPE_FAT)
-		, backupSave(false)
-		, SPU_sync_mode(1)
-		, SPU_sync_method(0)
-		, WifiBridgeDeviceID(0)
-	{
-		strcpy(ARM9BIOS, "biosnds9.bin");
-		strcpy(ARM7BIOS, "biosnds7.bin");
-		strcpy(ExtFirmwarePath, "firmware.bin");
-
-		for(int i=0;i<16;i++)
-			spu_muteChannels[i] = false;
-
-		for(int g=0;g<2;g++)
-			for(int x=0;x<5;x++)
-				dispLayers[g][x]=true;
-#ifdef HAVE_JIT
-		//zero 06-sep-2012 - shouldnt be defaulting this to true for now, since the jit is buggy. 
-		//id rather have people discover a bonus speedhack than discover new bugs in a new version
-		use_jit = false;
-#else
-		use_jit = false;
-#endif
-
-		num_cores = NDS_GetCPUCoreCount();
-		NDS_SetupDefaultFirmware();
-	}
 	bool GFX3D_HighResolutionInterpolateColor;
 	bool GFX3D_EdgeMark;
 	bool GFX3D_Fog;
@@ -599,18 +528,14 @@ extern struct TCommonSettings
 	bool cheatsDisable;
 
 	int num_cores;
-	bool single_core() { return num_cores==1; }
 	bool rigorous_timing;
 
-	struct GameHacks {
-		GameHacks()
-			: en(true)
-		{
-			clear();
-		}
+	struct GameHacks
+	{
 		bool en;
 
-		struct {
+		struct
+		{
 			bool overclock;
 			bool stylusjitter;
 		} flags;
@@ -630,15 +555,7 @@ extern struct TCommonSettings
 	
 	int WifiBridgeDeviceID;
 
-	enum MicMode
-	{
-		InternalNoise = 0,
-		Sample        = 1,
-		Random        = 2,
-		Physical      = 3
-	} micMode;
-
-
+	MicMode micMode;
 	int spuInterpolationMode;
 
 	//this is a temporary hack until we straighten out the flushing logic and/or gxfifo
@@ -656,29 +573,27 @@ extern struct TCommonSettings
 	bool spu_captureMuted;
 	bool spu_advanced;
 
-	struct _ShowGpu {
-		_ShowGpu() : main(true), sub(true) {}
-		union {
-			struct { bool main,sub; };
-			bool screens[2];
-		};
+	union
+	{
+		struct { bool main, sub; };
+		bool screens[2];
 	} showGpu;
 
-	struct _Hud {
-		_Hud() 
-			: ShowInputDisplay(false)
-			, ShowGraphicalInputDisplay(false)
-			, FpsDisplay(false)
-			, FrameCounterDisplay(false)
-			, ShowLagFrameCounter(false)
-			, ShowMicrophone(false)
-			, ShowRTC(false)
-		{}
-		bool ShowInputDisplay, ShowGraphicalInputDisplay, FpsDisplay, FrameCounterDisplay, ShowLagFrameCounter, ShowMicrophone, ShowRTC;
+	struct _Hud
+	{
+		bool ShowInputDisplay;
+		bool ShowGraphicalInputDisplay;
+		bool FpsDisplay;
+		bool FrameCounterDisplay;
+		bool ShowLagFrameCounter;
+		bool ShowMicrophone;
+		bool ShowRTC;
 	} hud;
 
 	std::string run_advanscene_import;
-
+	
+	TCommonSettings();
+	bool single_core();
 } CommonSettings;
 
 void NDS_RunAdvansceneAutoImport();

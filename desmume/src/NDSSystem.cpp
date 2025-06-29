@@ -1,6 +1,6 @@
 /*
 	Copyright (C) 2006 yopyop
-	Copyright (C) 2008-2021 DeSmuME team
+	Copyright (C) 2008-2025 DeSmuME team
 
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -103,9 +103,6 @@ CFIRMWARE *extFirmwareObj = NULL;
 
 std::vector<u32> memReadBreakPoints;
 std::vector<u32> memWriteBreakPoints;
-
-using std::min;
-using std::max;
 
 bool singleStep;
 bool nds_debug_continuing[2];
@@ -315,6 +312,36 @@ RomBanner::RomBanner(bool defaultInit)
 	memset(palette,0,sizeof(palette));
 	memset(titles,0,sizeof(titles));
 	memset(end0xFF,0,sizeof(end0xFF));
+}
+
+GameInfo::GameInfo()
+{
+	fROM = NULL;
+	reader = NULL;
+	romdataForReader = NULL;
+	
+	romsize = 0;
+	cardSize = 0;
+	mask = 0;
+	crc = 0;
+	crcForCheatsDb = 0;
+	chipID = 0x00000FC2;
+	romType = ROM_NDS;
+	headerOffset = 0;
+	
+	memset(&ROMserial[0], 0, sizeof(ROMserial));
+	memset(&ROMname[0], 0, sizeof(ROMname));
+	
+	_isDSiEnhanced = false;
+	
+	memset(&header, 0, sizeof(header));
+	memset(secureArea, 0, sizeof(secureArea));
+	memset(&banner, 0, sizeof(banner));
+}
+
+GameInfo::~GameInfo()
+{
+	closeROM();
 }
 
 bool GameInfo::hasRomBanner()
@@ -721,9 +748,9 @@ int NDS_LoadROM(const char *filename, const char *physicalName, const char *logi
 		int read = gameInfo.reader->Read(gameInfo.fROM,fROMBuffer,4096);
 		if(read == 0) break;
 		if(first && read >= 512)
-			gameInfo.crcForCheatsDb = ~crc32(0, fROMBuffer, 512);
+			gameInfo.crcForCheatsDb = (u32)~crc32(0, fROMBuffer, 512);
 		first = false;
-		gameInfo.crc = crc32(gameInfo.crc, fROMBuffer, read);
+		gameInfo.crc = (u32)crc32(gameInfo.crc, fROMBuffer, read);
 	}
 
 	gameInfo.chipID  = 0xC2;														// The Manufacturer ID is defined by JEDEC (C2h = Macronix)
@@ -779,7 +806,7 @@ int NDS_LoadROM(const char *filename, const char *physicalName, const char *logi
 			else
 			{
 				printf("%s", save_types[sv + 1].descr);
-				if (CommonSettings.autodetectBackupMethod == 1)
+				if (CommonSettings.autodetectBackupMethod == BackupDeviceAutodetectMethod_Advanscene)
 					backup_setManualBackupType(sv + 1);
 			}
 		printf("\n\t* ROM crc:\t\t%08X\n", advsc.getCRC32());
@@ -940,6 +967,8 @@ static const u64 kNever = 0xFFFFFFFFFFFFFFFFULL;
 
 struct TSequenceItem
 {
+	virtual ~TSequenceItem() {}
+	
 	u64 timestamp;
 	u32 param;
 	bool enabled;
@@ -972,6 +1001,8 @@ struct TSequenceItem
 
 struct TSequenceItem_GXFIFO : public TSequenceItem
 {
+	virtual ~TSequenceItem_GXFIFO() {}
+	
 	FORCEINLINE bool isTriggered()
 	{
 		return enabled && nds_timer >= MMU.gfx3dCycles;
@@ -995,6 +1026,8 @@ struct TSequenceItem_GXFIFO : public TSequenceItem
 
 template<int procnum, int num> struct TSequenceItem_Timer : public TSequenceItem
 {
+	virtual ~TSequenceItem_Timer() {}
+	
 	FORCEINLINE bool isTriggered()
 	{
 		return enabled && nds_timer >= nds.timerCycle[procnum][num];
@@ -1063,6 +1096,8 @@ template<int procnum, int num> struct TSequenceItem_Timer : public TSequenceItem
 template<int procnum, int chan> struct TSequenceItem_DMA : public TSequenceItem
 {
 	DmaController* controller;
+	
+	virtual ~TSequenceItem_DMA() {}
 
 	FORCEINLINE bool isTriggered()
 	{
@@ -1122,6 +1157,8 @@ template<int procnum, int chan> struct TSequenceItem_DMA : public TSequenceItem
 
 struct TSequenceItem_ReadSlot1 : public TSequenceItem
 {
+	virtual ~TSequenceItem_ReadSlot1() {}
+	
 	FORCEINLINE bool isTriggered()
 	{
 		return enabled && nds_timer >= timestamp;
@@ -1148,6 +1185,8 @@ struct TSequenceItem_ReadSlot1 : public TSequenceItem
 
 struct TSequenceItem_divider : public TSequenceItem
 {
+	virtual ~TSequenceItem_divider() {}
+	
 	FORCEINLINE bool isTriggered()
 	{
 		return MMU.divRunning && nds_timer >= MMU.divCycles;
@@ -1180,6 +1219,8 @@ struct TSequenceItem_divider : public TSequenceItem
 
 struct TSequenceItem_sqrtunit : public TSequenceItem
 {
+	virtual ~TSequenceItem_sqrtunit() {}
+	
 	FORCEINLINE bool isTriggered()
 	{
 		return MMU.sqrtRunning && nds_timer >= MMU.sqrtCycles;
@@ -1657,7 +1698,7 @@ FORCEINLINE u64 _fast_min(u64 a, u64 b)
 	//you might find that this is faster on a 64bit system; someone should try it
 	//http://aggregate.org/MAGIC/#Integer%20Selection
 	//u64 ret = (((((s64)(a-b)) >> (64-1)) & (a^b)) ^ b);
-	//assert(ret==min(a,b));
+	//assert(ret==std::min(a,b));
 	//return ret;	
 	
 	//but this ends up being the fastest on 32bits
@@ -1899,7 +1940,7 @@ static FORCEINLINE s32 minarmtime(s32 arm9, s32 arm7)
 {
 	if(doarm9)
 		if(doarm7)
-			return min(arm9,arm7);
+			return std::min(arm9,arm7);
 		else
 			return arm9;
 	else
@@ -1963,7 +2004,7 @@ static /*donotinline*/ std::pair<s32,s32> armInnerLoop(
 			else
 			{
 				s32 temp = arm9;
-				arm9 = min(s32next, arm9 + kIrqWait);
+				arm9 = std::min(s32next, arm9 + kIrqWait);
 				nds.idleCycles[0] += arm9-temp;
 				if (gxFIFO.size < 255) nds.freezeBus &= ~1;
 			}
@@ -2004,7 +2045,7 @@ static /*donotinline*/ std::pair<s32,s32> armInnerLoop(
 			else
 			{
 				s32 temp = arm7;
-				arm7 = min(s32next, arm7 + kIrqWait);
+				arm7 = std::min(s32next, arm7 + kIrqWait);
 				nds.idleCycles[1] += arm7-temp;
 				if(arm7 == s32next)
 				{
@@ -2124,7 +2165,7 @@ void NDS_exec(s32 nb)
 
 			//find next work unit:
 			u64 next = sequencer.findNext();
-			next = min(next,nds_timer+kMaxWork); //lets set an upper limit for now
+			next = std::min(next,nds_timer+kMaxWork); //lets set an upper limit for now
 
 			//printf("%d\n",(next-nds_timer));
 
@@ -2615,12 +2656,12 @@ bool NDS_FakeBoot()
 	//perhaps we could automatically boot homebrew to an R4-like device.
 	_MMU_write32<ARMCPU_ARM9>(0x02FFFE70, 0x5f617267);
 	_MMU_write32<ARMCPU_ARM9>(0x02FFFE74, kCommandline); //(commandline starts here)
-	_MMU_write32<ARMCPU_ARM9>(0x02FFFE78, rompath.size()+1);
+	_MMU_write32<ARMCPU_ARM9>(0x02FFFE78, (u32)(rompath.size()+1));
 	//0x027FFF7C (argc)
 	//0x027FFF80 (argv)
-	for(size_t i=0;i<rompath.size();i++)
-		_MMU_write08<ARMCPU_ARM9>(kCommandline+i, rompath[i]);
-	_MMU_write08<ARMCPU_ARM9>(kCommandline+rompath.size(), 0);
+	for (size_t i = 0; i < rompath.size(); i++)
+		_MMU_write08<ARMCPU_ARM9>((u32)(kCommandline+i), rompath[i]);
+	_MMU_write08<ARMCPU_ARM9>((u32)(kCommandline+rompath.size()), 0);
 	//--------------------------------
 
 	//Call the card post_fakeboot hook to perform additional initialization
@@ -2853,14 +2894,14 @@ u16 NDS_getADCTouchPosX(int scrX_lsl4)
 {
 	scrX_lsl4 >>= 4;
 	int rv = ((scrX_lsl4 - TSCal.scr.x1 + 1) * TSCal.adc.width) / TSCal.scr.width + TSCal.adc.x1;
-	rv = min(0xFFF, max(0, rv));
+	rv = std::min(0xFFF, std::max(0, rv));
 	return (u16)(rv);
 }
 u16 NDS_getADCTouchPosY(int scrY_lsl4)
 {
 	scrY_lsl4 >>= 4;
 	int rv = ((scrY_lsl4 - TSCal.scr.y1 + 1) * TSCal.adc.height) / TSCal.scr.height + TSCal.adc.y1;
-	rv = min(0xFFF, max(0, rv));
+	rv = std::min(0xFFF, std::max(0, rv));
 	return (u16)(rv);
 }
 
@@ -3297,6 +3338,129 @@ void NDS_GetCPULoadAverage(u32 &outLoadAvgARM9, u32 &outLoadAvgARM7)
 //these templates needed to be instantiated manually
 template void NDS_exec<FALSE>(s32 nb);
 template void NDS_exec<TRUE>(s32 nb);
+
+TCommonSettings::TCommonSettings()
+{
+	GFX3D_HighResolutionInterpolateColor = true;
+	GFX3D_EdgeMark = true;
+	GFX3D_Fog = true;
+	GFX3D_Texture = true;
+	GFX3D_LineHack = true;
+	GFX3D_Renderer_MultisampleSize = 0;
+	GFX3D_Renderer_TextureScalingFactor = 1;
+	GFX3D_Renderer_TextureDeposterize = false;
+	GFX3D_Renderer_TextureSmoothing = false;
+	GFX3D_TXTHack = false;
+	
+	OpenGL_Emulation_ShadowPolygon = true;
+	OpenGL_Emulation_SpecialZeroAlphaBlending = true;
+	OpenGL_Emulation_NDSDepthCalculation = true;
+	OpenGL_Emulation_DepthLEqualPolygonFacing = false;
+	
+	loadToMemory = false;
+	
+	UseExtBIOS = false;
+	strncpy(ARM9BIOS, "biosnds9.bin", MAX_PATH);
+	strncpy(ARM7BIOS, "biosnds7.bin", MAX_PATH);
+	SWIFromBIOS = false;
+	PatchSWI3 = false;
+	
+	RetailCardProtection8000 = true;
+	UseExtFirmware = false;
+	UseExtFirmwareSettings = false;
+	strncpy(ExtFirmwarePath, "firmware.bin", MAX_PATH);
+	memset(ExtFirmwareUserSettingsPath, 0, sizeof(ExtFirmwareUserSettingsPath));
+	BootFromFirmware = false;
+	
+	ConsoleType = NDS_CONSOLE_TYPE_FAT;
+	DebugConsole = false;
+	EnsataEmulation = false;
+	
+	cheatsDisable = false;
+	
+	num_cores = NDS_GetCPUCoreCount();
+	rigorous_timing = false;
+	
+	gamehacks.en = true;
+	gamehacks.clear();
+	
+	StylusPressure = 50;
+	
+	dispLayers[0][0] = true;
+	dispLayers[0][1] = true;
+	dispLayers[0][2] = true;
+	dispLayers[0][3] = true;
+	dispLayers[0][4] = true;
+	
+	dispLayers[1][0] = true;
+	dispLayers[1][1] = true;
+	dispLayers[1][2] = true;
+	dispLayers[1][3] = true;
+	dispLayers[1][4] = true;
+	
+	advanced_timing = true;
+	
+#ifdef HAVE_JIT
+	//zero 06-sep-2012 - shouldnt be defaulting this to true for now, since the jit is buggy.
+	//id rather have people discover a bonus speedhack than discover new bugs in a new version
+	use_jit = false;
+#else
+	use_jit = false;
+#endif
+	jit_max_block_size = 12;
+	
+	WifiBridgeDeviceID = 0;
+	
+	micMode = MicMode_InternalNoise;
+	spuInterpolationMode = SPUInterpolation_Cosine;
+	
+	autodetectBackupMethod = BackupDeviceAutodetectMethod_Desmume;
+	manualBackupType = MC_TYPE_AUTODETECT;
+	backupSave = false;
+	
+	SPU_sync_mode = ESynchMode_Synchronous;
+	SPU_sync_method = ESynchMethod_N;
+	
+	spu_muteChannels[ 0] = false;
+	spu_muteChannels[ 1] = false;
+	spu_muteChannels[ 2] = false;
+	spu_muteChannels[ 3] = false;
+	spu_muteChannels[ 4] = false;
+	spu_muteChannels[ 5] = false;
+	spu_muteChannels[ 6] = false;
+	spu_muteChannels[ 7] = false;
+	spu_muteChannels[ 8] = false;
+	spu_muteChannels[ 9] = false;
+	spu_muteChannels[10] = false;
+	spu_muteChannels[11] = false;
+	spu_muteChannels[12] = false;
+	spu_muteChannels[13] = false;
+	spu_muteChannels[14] = false;
+	spu_muteChannels[15] = false;
+	
+	spu_captureMuted = false;
+	spu_advanced = true;
+	
+	showGpu.main = true;
+	showGpu.sub = true;
+	
+	hud.ShowInputDisplay = false;
+	hud.ShowGraphicalInputDisplay = false;
+	hud.FpsDisplay = false;
+	hud.FrameCounterDisplay = false;
+	hud.ShowLagFrameCounter = false;
+	hud.ShowMicrophone = false;
+	hud.ShowRTC = false;
+	
+	run_advanscene_import = "";
+	
+	NDS_SetupDefaultFirmware();
+}
+
+bool TCommonSettings::single_core()
+{
+	return (num_cores == 1);
+}
 
 void TCommonSettings::GameHacks::apply()
 {

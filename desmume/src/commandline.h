@@ -1,5 +1,5 @@
 /*
-	Copyright (C) 2009-2017 DeSmuME team
+	Copyright (C) 2009-2025 DeSmuME team
 
 	This file is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -41,61 +41,15 @@ extern int _commandline_linux_nojoy;
 
 class CommandLine
 {
-public:
-	//actual options: these may move to another struct
-	int load_slot;
-	int autodetect_method;
-	int render3d;
-	int texture_upscale;
-	int gpu_resolution_multiplier;
-	int language;
-	float scale;
-	std::string nds_file;
-	std::string play_movie_file;
-	std::string record_movie_file;
-	int arm9_gdb_port, arm7_gdb_port;
-	int start_paused;
-	std::string cflash_image;
-	std::string cflash_path;
-	std::string gbaslot_rom;
-	std::string slot1;
-	std::string console_type;
-	std::string slot1_fat_dir;
-	bool _slot1_fat_dir_type;
-	int _slot1_no8000prot;
-	int disable_sound;
-	int disable_limiter;
-	int windowed_fullscreen;
-	int frameskip;
-	int horizontal;
-
-	bool parse(int argc,char **argv);
-
-	//validate the common commandline options
-	bool validate();
-
-	//process movie play/record commands
-	void process_movieCommands();
-	//etc.
-	void process_addonCommands();
-	bool is_cflash_configured;
-	
-	//print a little help message for cases when erroneous commandlines are entered
-	void errorHelp(const char* binName);
-
-	CommandLine();
-	~CommandLine();
-
-	int _spu_sync_mode;
-	int _spu_sync_method;
 private:
-	char* _play_movie_file;
-	char* _record_movie_file;
-	char* _cflash_image;
-	char* _cflash_path;
-	char* _gbaslot_rom;
-	char* _bios_arm9, *_bios_arm7;
-	char* _fw_path;
+	char *_play_movie_file;
+	char *_record_movie_file;
+	char *_cflash_image;
+	char *_cflash_path;
+	char *_gbaslot_rom;
+	char *_bios_arm9;
+	char *_bios_arm7;
+	char *_fw_path;
 	int _fw_boot;
 	int _load_to_memory;
 	int _bios_swi;
@@ -110,12 +64,59 @@ private:
 	int _cpu_mode;
 	int _jit_size;
 #endif
-	char* _slot1;
+	char *_slot1;
 	char *_slot1_fat_dir;
-	char* _console_type;
-	char* _advanscene_import;
+	char *_console_type;
+	char *_advanscene_import;
 	int _rtc_day;
 	int _rtc_hour;
+	
+public:
+	//actual options: these may move to another struct
+	int load_slot;
+	int autodetect_method;
+	int render3d;
+	int texture_upscale;
+	int gpu_resolution_multiplier;
+	int language;
+	float scale;
+	std::string nds_file;
+	std::string play_movie_file;
+	std::string record_movie_file;
+	int arm9_gdb_port;
+	int arm7_gdb_port;
+	int start_paused;
+	std::string cflash_image;
+	std::string cflash_path;
+	std::string gbaslot_rom;
+	std::string slot1;
+	std::string console_type;
+	std::string slot1_fat_dir;
+	bool _slot1_fat_dir_type;
+	int _slot1_no8000prot;
+	int disable_sound;
+	int disable_limiter;
+	int windowed_fullscreen;
+	int frameskip;
+	int horizontal;
+	bool is_cflash_configured;
+	int _spu_sync_mode;
+	int _spu_sync_method;
+	
+	CommandLine();
+
+	bool parse(int argc,char **argv);
+
+	//validate the common commandline options
+	bool validate();
+
+	//process movie play/record commands
+	void process_movieCommands();
+	//etc.
+	void process_addonCommands();
+	
+	//print a little help message for cases when erroneous commandlines are entered
+	void errorHelp(const char* binName);
 };
 
 #endif
