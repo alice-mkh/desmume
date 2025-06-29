@@ -1,6 +1,6 @@
 #pragma once
 
-#include <highscore/libhighscore.h>
+#include <libhighscore.h>
 
 G_BEGIN_DECLS
 
