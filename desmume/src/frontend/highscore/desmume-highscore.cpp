@@ -251,7 +251,7 @@ desmume_core_load_rom (HsCore      *core,
   arm_jit_reset (CommonSettings.use_jit);
 #endif
 
-  CommonSettings.micMode = TCommonSettings::Sample;
+  CommonSettings.micMode = MicMode_Sample;
 
   CommonSettings.spuInterpolationMode = SPUInterpolation_None;
   SPU_ChangeSoundCore (SNDCORE_HIGHSCORE, 735 * 4);
