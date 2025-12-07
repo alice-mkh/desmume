@@ -487,7 +487,17 @@ enum MicMode
 	MicMode_Physical      = 3
 };
 
-extern struct TCommonSettings
+struct GameHackCheat
+{
+	virtual void Run() {}
+
+	void write08(u32 address, u8 value);
+	void write(u32 address, size_t sz, void* value);
+	void write32(u32 address, u32 value);
+	u32 read32(u32 address);
+};
+
+struct TCommonSettings
 {
 	bool GFX3D_HighResolutionInterpolateColor;
 	bool GFX3D_EdgeMark;
@@ -534,14 +544,19 @@ extern struct TCommonSettings
 	{
 		bool en;
 
-		struct
+		struct GameHacksFlags
 		{
 			bool overclock;
 			bool stylusjitter;
+			std::vector<GameHackCheat*> cheats;
+			
+			void reset();
 		} flags;
 		
+
 		void apply();
 		void clear();
+		void execute();
 	} gamehacks;
 
 	int StylusPressure;
@@ -594,7 +609,9 @@ extern struct TCommonSettings
 	
 	TCommonSettings();
 	bool single_core();
-} CommonSettings;
+};
+
+extern TCommonSettings CommonSettings;
 
 void NDS_RunAdvansceneAutoImport();
 
