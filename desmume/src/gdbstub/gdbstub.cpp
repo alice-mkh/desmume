@@ -58,7 +58,7 @@ slock *cpu_mutex = NULL;
 #endif
 
 #if 1
-#define DEBUG_LOG( fmt, ...) fprintf(stdout, fmt, ##__VA_ARGS__)
+#define DEBUG_LOG( fmt, ...) if(getenv("GDBSTUB_DEBUG")) fprintf(stdout, fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_LOG( fmt, ...)
 #endif
@@ -1107,7 +1107,12 @@ createSocket ( int port) {
   sock = socket (PF_INET, SOCK_STREAM, 0);
 
   if ( sock != INVALID_SOCKET)
-    {
+  {
+#ifndef WIN32
+      /* reuse socket, might have stall state if previously used */
+      int yes = 1;
+      setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+#endif
       if (bind (sock, (struct sockaddr *) &bind_addr,
                 sizeof (bind_addr)) == -1) {
         LOG_ERROR("Bind failed \"%s\" port %d\n", strerror( errno), port);
@@ -1597,14 +1602,16 @@ createStub_gdb( uint16_t port,
 
     if ( stub->thread == NULL) {
       LOG_ERROR("Failed to create listener thread\n");
-	  delete stub;
+      delete stub;
+      stub = NULL;
     }
     else {
       DEBUG_LOG("Created GDB stub on port %d\n", port);
     }
   }
   else {
-	  delete stub;
+    delete stub;
+    stub = NULL;
   }
 
   return stub;
